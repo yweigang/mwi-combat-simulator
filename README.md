@@ -30,8 +30,17 @@ node local/server.mjs            # or double-click local/start.cmd on Windows
 
 This opens the same page at <http://localhost:8787/>. The page is only the UI: every simulation runs in Node worker
 threads on all of your cores, without the browser's core-count limits or background-tab throttling. Options:
-`--port N`, `--workers N` (defaults to every core) and `--no-open`. The market price cache is kept in
+`--port N`, `--workers N` (defaults to every core), `--no-open` and `--no-split` (below). The market price cache is kept in
 `local/.cache/`. Opened any other way (for example from GitHub Pages), the page runs in the browser as before.
+
+**Split sims.** A Run with fewer zones than threads would leave most cores idle, so each planet sim in it runs as
+chunks of at least 3 h on separate threads (a single 168 h sim: 1.2 s → 0.3 s on 8 cores / 16 threads). Every
+chunk after the first starts with a 1–2 h warm-up that is simulated and then subtracted, so no chunk starts from a
+fresh full-mana, nothing-on-cooldown state. Over 32 seeds on solo and party zones, the split results differed from
+unsplit ones by no more than unsplit runs on other seeds do (within ±0.11% on kills, XP, damage, consumables and
+mana). Each chunk has its own seed, so the numbers are an equally valid sample, not the browser's exact ones; the
+same request always gives the same numbers. Dungeons, the upgrade / trigger / skill searches (which fill every
+thread already) and Runs with many zones are never split. `--no-split` turns it off.
 
 ### Measuring performance
 

@@ -1,10 +1,11 @@
 // Local mode: serves the site from this checkout and runs every simulation in Node worker threads.
 //
-//   node local/server.mjs [--port 8787] [--workers N] [--host 127.0.0.1] [--no-open]
+//   node local/server.mjs [--port 8787] [--workers N] [--host 127.0.0.1] [--no-open] [--no-split]
 //
 // The page is the same index.html; zoneApi.js notices /local-api/ping answers and sends its zone calls here
 // instead of starting Web Workers. Streamed requests (run, upgrades, triggers, skills) come back as NDJSON,
-// one event per line; closing the request (the page's Stop button) stops the search.
+// one event per line; closing the request (the page's Stop button) stops the search. --no-split runs every sim
+// on one thread, as the browser does (local/splitJob.mjs: a Run with few sims otherwise splits them into chunks).
 import { createServer } from "node:http";
 import { createReadStream, statSync } from "node:fs";
 import { extname, normalize, resolve, sep } from "node:path";
@@ -26,7 +27,7 @@ const WORKERS = Math.max(1, Math.min(CORES, Number(opt("workers", CORES)) || COR
 const ROOT = resolve(fileURLToPath(new URL("../", import.meta.url)));
 
 const metrics = createMetrics({ cores: CORES });
-const zone = createNodeZoneClient({ workers: WORKERS, maxWorkers: CORES, metrics });
+const zone = createNodeZoneClient({ workers: WORKERS, maxWorkers: CORES, metrics, split: !args.includes("--no-split") });
 
 const TYPES = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8",
