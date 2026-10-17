@@ -653,9 +653,10 @@
                 </select>
               </div>
               <sc-for list="{{ g.loadouts }}" as="l" hint-placeholder-count="2">
-                <div style="display:grid;grid-template-columns:auto minmax(0,1fr) 128px;gap:8px;align-items:center;font-size:12.5px">
+                <div style="display:grid;grid-template-columns:auto minmax(0,1fr) 112px 128px;gap:8px;align-items:center;font-size:12.5px">
                   <input type="checkbox" style="cursor:pointer;margin:0" title="Try this loadout" checked="{{ l.on }}" onChange="{{ l.toggle }}">
                   <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ l.sub }}">{{ l.name }} <span class="text-muted">{{ l.sub }}</span></span>
+                  <input class="input" type="text" maxlength="40" placeholder="Name it" style="min-height:25px;padding:0 6px;font-size:12px" title="A name for this loadout, e.g. Ranged or Nature: the ranking and the party card show it" value="{{ l.label }}" onInput="{{ l.setLabel }}">
                   <select class="input" style="min-height:25px;padding:0 5px;font-size:12px" title="The character this loadout belongs to" value="{{ l.char }}" onChange="{{ l.setChar }}">
                     <sc-for list="{{ l.charOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.value }}">{{ o.label }}</option></sc-for>
                   </select>
@@ -2386,7 +2387,7 @@ class Component extends DCLogic {
   // grouped into characters by that name (or by hand), and the search runs every way of picking one loadout per
   // character through one queued zone, every combination on the same seeds, so two combinations differ by their
   // loadouts and not by their luck. A character marked Optional may also sit out, which compares party sizes too.
-  static COMP_DEFAULTS = { open: false, metric: "xp", hours: 1000, seeds: 2, target: 0, char: {}, role: {}, skip: {} };
+  static COMP_DEFAULTS = { open: false, metric: "xp", hours: 1000, seeds: 2, target: 0, char: {}, role: {}, skip: {}, label: {} };
   // Each combination is a full simulation per seed, so the plan is refused past this many combinations.
   static COMP_MAX = 300;
   static compBase(name) { return String(name || "").replace(/\s\(\d+\)$/, ""); }
@@ -2580,8 +2581,8 @@ class Component extends DCLogic {
       return {
         rank: r.error ? "—" : String(i + 1),
         picks: chars.map(k => { const n = pickOf(r, k), p = party.find((q, j) => this.zonePartyName(q, j) === n);
-          return { text: n || Component.t("sits out"), style: n ? "" : "color:var(--color-neutral-400);font-style:italic",
-            tip: n ? [weapon(p), statLine(p), r.each?.[n] != null ? Component.tf("{n} XP / h", { n: big(r.each[n]) }) : ""].filter(Boolean).join(" · ") : "" }; }),
+          return { text: n ? c.label[n] || n : Component.t("sits out"), style: n ? "" : "color:var(--color-neutral-400);font-style:italic",
+            tip: n ? [c.label[n] ? n : "", weapon(p), statLine(p), r.each?.[n] != null ? Component.tf("{n} XP / h", { n: big(r.each[n]) }) : ""].filter(Boolean).join(" · ") : "" }; }),
         xp: r.error ? "" : big(r.xp), profit: r.error ? "" : coin(r.profit), kills: r.error ? "" : nf(r.kills, 1),
         rate: r.error ? "" : nf(r.rate, 2), deaths: r.error ? "" : nf(r.deaths, 2),
         tip: r.error ? r.error : [`${metricLabel.xp} ${big(r.xp)}${pm(r, "xp")}`, `${metricLabel.profit} ${coin(r.profit)}${pm(r, "profit")}`,
@@ -2610,7 +2611,11 @@ class Component extends DCLogic {
         style: g.role === "out" ? "opacity:0.6" : "",
         setRole: e => this.setZoneComp({ role: { ...c.role, [g.key]: e.target.value } }),
         loadouts: g.entries.map(e => { const p = party[e.index];
-          return { name: e.name, on: e.on, sub: [weapon(p), statLine(p), e.seated ? Component.t("seated") : ""].filter(Boolean).join(" · "),
+          return { name: e.name, on: e.on, label: c.label[e.name] || "",
+            setLabel: ev => { const v = String(ev.target.value || "").slice(0, 40), lb = { ...c.label };
+              if (v.trim()) lb[e.name] = v; else delete lb[e.name];
+              this.setZoneComp({ label: lb }); },
+            sub: [weapon(p), statLine(p), e.seated ? Component.t("seated") : ""].filter(Boolean).join(" · "),
             toggle: () => this.setZoneComp({ skip: { ...c.skip, [e.name]: e.on } }),
             char: g.key, charOpts,
             setChar: ev => { const v = ev.target.value, ch = { ...c.char };
@@ -3654,6 +3659,7 @@ class Component extends DCLogic {
           set: v => this.zoneSetConsumable(i, kind, k, typeof v === "string" ? v : v.target.value),
           remove: () => this.zoneSetConsumable(i, kind, k, "") }; }); };
     const actNames = this.zoneActiveNames(s), actSet = new Set(actNames);
+    const compLabel = this.zoneCompSettings(s).label;   // the loadout names given under Best combination
     const inParty = actSet.has(this.zonePartyName(p, i));
     return {
       has: true, one: party.length === 1,
@@ -3672,7 +3678,7 @@ class Component extends DCLogic {
           // through t(). Derived at render time, which is why no scanner of this file ever saw it as English.
           ? `${Component.t(String(sk.enhancingTool.itemHrid || "").split("/").pop().replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()))}${sk.enhancingTool.enhancementLevel ? ` +${sk.enhancingTool.enhancementLevel}` : ""}`
           : "no tool";
-        return { name: nm, sub: `${Component.t(nice(st))} ${L[st] || 0}${seated ? "" : ` · ${Component.t("benched")}`}`, active: k === i, dirty: n > 0,
+        return { name: nm, sub: `${compLabel[nm] ? `${compLabel[nm]} · ` : ""}${Component.t(nice(st))} ${L[st] || 0}${seated ? "" : ` · ${Component.t("benched")}`}`, active: k === i, dirty: n > 0,
           // The card the loadout editor below is showing: named, so the accent border is not read as a hover.
           editTag: k === i ? Component.t("editing") : "", editTitle: Component.t("The loadout editor below shows this character"),
           skillSub: sk?.enhancingLevel ? `${Component.t("enhancing")} ${sk.enhancingLevel} \u00b7 ${tool}${sk.alchemyLevel ? ` \u00b7 ${Component.t("alchemy")} ${sk.alchemyLevel}` : ""}` : "",
