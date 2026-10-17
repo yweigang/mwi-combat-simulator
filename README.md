@@ -54,6 +54,16 @@ thread already) and Runs with many zones are never split. `--no-split` turns it 
   `docker compose -f local/grafana/docker-compose.yml up -d` starts Prometheus and Grafana with a ready-made
   dashboard at <http://localhost:3000>, keeping 30 days of history.
 
+## Best combination of loadouts (this fork)
+
+On Setup, under the loadout editor: give a character several loadouts and find which loadout of each makes the best
+party. A second export of a character imports as "Name (2)". Paste it with the others, or use the panel's **Add
+loadouts** box, which appends to the party instead of replacing it. Players are grouped into characters by name; a
+dropdown per loadout regroups one, for example a player made with Add player. Mark each character *In the party*,
+*Optional* (also tried sitting out) or *Left out*, pick a queued zone, hours and seeds, and Run. Every combination
+that fits the zone's party size runs on the same seeds. They are ranked by XP / h, Profit / day or Kills / h, with
+two standard errors, and **Seat** puts a combination in the party for a full Run.
+
 ## Found something wrong?
 
 Mail Metzli in-game, or open an issue. Numbers that look off are worth reporting with your export and the zone you

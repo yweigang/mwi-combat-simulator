@@ -630,6 +630,132 @@
     </div>
   </sc-if>
 
+  <!-- Best combination of loadouts (fork, 2026-10-17): several loadouts per character, and which one of each makes
+       the best party. Its own section under the editor: it reads the whole party, benched players included. -->
+  <sc-if value="{{ zone.comp.has }}" hint-placeholder-val="{{ false }}">
+  <div data-tour="comp" style="display:flex;flex-direction:column;gap:var(--space-3);padding-top:var(--space-3);border-top:1px solid var(--color-divider)">
+    <button class="btn btn-ghost" style="padding:1px 0;border-color:transparent;justify-content:flex-start;display:flex;gap:9px;align-items:baseline;width:100%;text-align:left" onClick="{{ zone.comp.toggle }}">
+      <span style="font-size:12px;letter-spacing:0.06em;text-transform:uppercase;flex:none;color:var(--color-accent-300)">{{ zone.comp.caret }} Best combination of loadouts</span>
+      <span class="text-muted" style="font-size:12px;margin-left:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ zone.comp.summary }}</span>
+    </button>
+    <sc-if value="{{ zone.comp.open }}" hint-placeholder-val="{{ false }}">
+      <div class="text-muted" style="font-size:12.5px;text-wrap:pretty;max-width:100ch">{{ zone.comp.intro }}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:var(--space-4) var(--space-6);align-items:start">
+        <!-- the characters and their loadouts -->
+        <div style="display:flex;flex-direction:column;gap:var(--space-2);min-width:0">
+          <sc-for list="{{ zone.comp.chars }}" as="g" hint-placeholder-count="3">
+            <div style="display:flex;flex-direction:column;gap:4px;border:1px solid var(--color-divider);border-radius:var(--radius-sm);background:var(--color-surface);padding:6px 8px;{{ g.style }}">
+              <div style="display:flex;gap:8px;align-items:center">
+                <span style="font-size:13.5px;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ g.key }}</span>
+                <span class="text-muted" style="font-size:12px;flex:none">{{ g.count }}</span>
+                <select class="input" style="min-height:27px;padding:1px 6px;font-size:12.5px;margin-left:auto;width:auto;flex:none" title="In the party: always seated, with one of its loadouts. Optional: also tried sitting out. Left out: never seated." value="{{ g.role }}" onChange="{{ g.setRole }}">
+                  <sc-for list="{{ g.roleOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.value }}">{{ o.label }}</option></sc-for>
+                </select>
+              </div>
+              <sc-for list="{{ g.loadouts }}" as="l" hint-placeholder-count="2">
+                <div style="display:grid;grid-template-columns:auto minmax(0,1fr) 128px;gap:8px;align-items:center;font-size:12.5px">
+                  <input type="checkbox" style="cursor:pointer;margin:0" title="Try this loadout" checked="{{ l.on }}" onChange="{{ l.toggle }}">
+                  <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ l.sub }}">{{ l.name }} <span class="text-muted">{{ l.sub }}</span></span>
+                  <select class="input" style="min-height:25px;padding:0 5px;font-size:12px" title="The character this loadout belongs to" value="{{ l.char }}" onChange="{{ l.setChar }}">
+                    <sc-for list="{{ l.charOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.value }}">{{ o.label }}</option></sc-for>
+                  </select>
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+          <sc-if value="{{ zone.comp.multiNote }}" hint-placeholder-val="{{ false }}"><div class="text-muted" style="font-size:12.5px;text-wrap:pretty">{{ zone.comp.multiNote }}</div></sc-if>
+          <div class="field" style="margin:0"><label>Add loadouts</label>
+            <textarea class="input" rows="3" placeholder="Paste more exports — they join the party, nothing is replaced" style="font-size:13px;line-height:1.45;resize:vertical" value="{{ zone.comp.text }}" onInput="{{ zone.comp.setText }}"></textarea>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:5px">
+              <button class="btn btn-secondary" style="padding:2px 12px;font-size:12.5px;flex:none" disabled="{{ zone.comp.appendDisabled }}" onClick="{{ zone.comp.append }}">{{ zone.comp.appendLabel }}</button>
+              <span class="text-muted" style="font-size:12.5px;text-wrap:pretty">{{ zone.comp.appendNote }}</span>
+            </div>
+            <sc-if value="{{ zone.comp.hasAppendError }}" hint-placeholder-val="{{ false }}"><div style="font-size:12.5px;margin-top:4px;color:var(--color-accent-2-300);text-wrap:pretty">{{ zone.comp.appendError }}</div></sc-if>
+          </div>
+        </div>
+        <!-- where, how long, and the search -->
+        <div style="display:flex;flex-direction:column;gap:var(--space-3);min-width:0">
+          <div style="display:grid;grid-template-columns:96px minmax(0,1fr);gap:6px 9px;align-items:center;font-size:13px">
+            <span class="text-muted" style="font-size:12.5px">Zone</span>
+            <sc-if value="{{ zone.comp.noTarget }}" hint-placeholder-val="{{ false }}"><span class="text-muted" style="font-size:12.5px">Queue a zone above — the search runs on one of the queued rows.</span></sc-if>
+            <sc-if value="{{ zone.comp.hasTarget }}" hint-placeholder-val="{{ true }}">
+              <select class="input" style="min-height:29px;padding:2px 6px;font-size:12.5px" value="{{ zone.comp.target }}" onChange="{{ zone.comp.setTarget }}">
+                <sc-for list="{{ zone.comp.targetOpts }}" as="o" hint-placeholder-count="2"><option value="{{ o.value }}">{{ o.label }}</option></sc-for>
+              </select>
+            </sc-if>
+            <span class="text-muted" style="font-size:12.5px">Hours per seed</span>
+            <input class="input" type="number" min="1" max="8760" step="1" style="min-height:29px;padding:2px 6px;font-size:12.5px;width:90px;font-variant-numeric:tabular-nums" value="{{ zone.comp.hours }}" onInput="{{ zone.comp.setHours }}">
+            <span class="text-muted" style="font-size:12.5px">Seeds</span>
+            <input class="input" type="number" min="1" max="20" step="1" style="min-height:29px;padding:2px 6px;font-size:12.5px;width:90px;font-variant-numeric:tabular-nums" value="{{ zone.comp.seeds }}" onInput="{{ zone.comp.setSeeds }}">
+          </div>
+          <div class="text-muted" style="font-size:12.5px;text-wrap:pretty">{{ zone.comp.capNote }} Seeds start at the Seed under Advanced; pricing, buffs, tasks and the wave delay are Setup's.</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button class="btn" style="padding:4px 16px;font-size:13.5px;font-weight:600;flex:none;color:var(--color-accent-2-200);border-color:color-mix(in srgb, var(--color-accent-2-500) 65%, transparent);background:color-mix(in srgb, var(--color-accent-2-700) 30%, transparent)" style-hover="background:color-mix(in srgb, var(--color-accent-2-600) 42%, transparent);color:var(--color-accent-2-100)" disabled="{{ zone.comp.runDisabled }}" onClick="{{ zone.comp.run }}">{{ zone.comp.runLabel }}</button>
+            <sc-if value="{{ zone.comp.running }}" hint-placeholder-val="{{ false }}">
+              <button class="btn btn-ghost" style="padding:3px 10px;font-size:13px;flex:none" title="The combinations already running finish; nothing else starts" onClick="{{ zone.comp.stop }}">Stop</button>
+            </sc-if>
+          </div>
+          <sc-if value="{{ zone.comp.running }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;gap:10px;align-items:center;max-width:520px">
+              <div role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ zone.comp.progressPct }}" style="flex:1;height:7px;border-radius:99px;overflow:hidden;background:color-mix(in srgb, var(--color-accent-2-500) 16%, transparent)">
+                <div style="{{ zone.comp.progressStyle }}"></div>
+              </div>
+              <span style="font-size:12.5px;font-variant-numeric:tabular-nums;flex:none;color:var(--color-accent-2-200)">{{ zone.comp.progressLabel }}</span>
+            </div>
+          </sc-if>
+          <div class="text-muted" style="font-size:12.5px;text-wrap:pretty">{{ zone.comp.planNote }}</div>
+          <sc-if value="{{ zone.comp.hasError }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--color-accent-2-300);text-wrap:pretty">{{ zone.comp.error }}</div></sc-if>
+        </div>
+      </div>
+
+      <!-- the ranking -->
+      <sc-if value="{{ zone.comp.hasRows }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <span class="text-muted" style="font-size:12px;letter-spacing:0.06em;text-transform:uppercase">Ranked by</span>
+            <div class="seg">
+              <sc-for list="{{ zone.comp.metrics }}" as="m" hint-placeholder-count="3">
+                <button class="seg-opt" style="font-size:12.5px;border:0;{{ m.style }}" onClick="{{ m.pick }}">{{ m.label }}</button>
+              </sc-for>
+            </div>
+            <span class="text-muted" style="font-size:12.5px">{{ zone.comp.headLine }}</span>
+          </div>
+          <div style="overflow-x:auto;max-height:520px;overflow-y:auto">
+            <div style="display:grid;{{ zone.comp.gridStyle }};gap:3px 12px;align-items:center;font-size:12.5px;min-width:max-content;padding:2px 4px">
+              <span class="text-muted" style="font-size:11.5px">#</span>
+              <sc-for list="{{ zone.comp.cols }}" as="h" hint-placeholder-count="3"><span class="text-muted" style="font-size:11.5px">{{ h.label }}</span></sc-for>
+              <span class="text-muted" style="font-size:11.5px;text-align:right">XP / h</span>
+              <span class="text-muted" style="font-size:11.5px;text-align:right">Profit / day</span>
+              <span class="text-muted" style="font-size:11.5px;text-align:right">Kills / h</span>
+              <span class="text-muted" style="font-size:11.5px;text-align:right">{{ zone.comp.rateLabel }}</span>
+              <span class="text-muted" style="font-size:11.5px;text-align:right">Deaths / h</span>
+              <span class="text-muted" style="font-size:11.5px;text-align:right">vs best</span>
+              <span></span>
+              <sc-for list="{{ zone.comp.rows }}" as="r" hint-placeholder-count="4">
+                <div style="display:contents" title="{{ r.tip }}">
+                  <span style="font-variant-numeric:tabular-nums;padding:2px 0;{{ r.rowStyle }}">{{ r.rank }}</span>
+                  <sc-for list="{{ r.picks }}" as="p" hint-placeholder-count="3"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;{{ p.style }}" title="{{ p.tip }}">{{ p.text }}</span></sc-for>
+                  <span style="text-align:right;font-variant-numeric:tabular-nums">{{ r.xp }}</span>
+                  <span style="text-align:right;font-variant-numeric:tabular-nums">{{ r.profit }}</span>
+                  <span style="text-align:right;font-variant-numeric:tabular-nums">{{ r.kills }}</span>
+                  <span style="text-align:right;font-variant-numeric:tabular-nums">{{ r.rate }}</span>
+                  <span style="text-align:right;font-variant-numeric:tabular-nums">{{ r.deaths }}</span>
+                  <span style="text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;{{ r.deltaStyle }}">{{ r.delta }}</span>
+                  <span>
+                    <sc-if value="{{ r.seatable }}" hint-placeholder-val="{{ true }}"><button class="btn btn-ghost" style="padding:0 8px;font-size:12px" title="Seat this combination on Setup, so the next Run uses it" onClick="{{ r.seat }}">Seat</button></sc-if>
+                    <sc-if value="{{ r.current }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--color-accent-300);text-transform:uppercase;letter-spacing:0.05em">seated</span></sc-if>
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <sc-if value="{{ zone.comp.verdict }}" hint-placeholder-val="{{ false }}"><div style="font-size:12.5px;text-wrap:pretty">{{ zone.comp.verdict }}</div></sc-if>
+        </div>
+      </sc-if>
+    </sc-if>
+  </div>
+  </sc-if>
+
   <!-- run options -->
   <div data-tour="pricing" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(272px,1fr));gap:var(--space-4) var(--space-6);align-items:start;padding-top:var(--space-2);border-top:1px solid var(--color-divider)">
     <div style="display:flex;flex-direction:column;gap:8px;align-self:start;min-width:0">
@@ -1200,6 +1326,9 @@ class Component extends DCLogic {
     zoneMarket: null, zoneMarketBusy: false, zoneMarketMsg: "", zoneMarketAt: 0,
     zoneSaves: [], zoneSaveName: "", zoneRunLog: [], zoneShow: null, zoneBaseline: null, zoneSetupFrom: null,
     zoneManaOpen: false, zoneNotExport: false,
+    // Best combination of loadouts: its settings (zoneCompSettings fills the rest), the last search and the paste box.
+    zoneComp: null, zoneCompRunning: false, zoneCompProgress: null, zoneCompRows: [], zoneCompHead: null, zoneCompError: null,
+    zoneCompText: "", zoneCompAppending: false, zoneCompAppendError: null, zoneCompAppendNote: "",
     zoneRestoredAt: null, zoneCmp: { a: null, b: null }, zoneCmpGrain: "totals",
     // Default view (operator, 2026-09-16): every result section collapsed to its header, which carries the total.
     zoneSecOpen: { rates: true, xp: false, damage: false, consumables: false, lootIn: false, lootOut: false },
@@ -1377,6 +1506,7 @@ class Component extends DCLogic {
       if (p.tasks) patch.zoneTasks = p.tasks;
       if (Array.isArray(p.runLog)) patch.zoneRunLog = p.runLog;
       if (p.baseline) patch.zoneBaseline = p.baseline;
+      if (p.comp) { patch.zoneComp = p.comp.settings || null; patch.zoneCompRows = p.comp.rows || []; patch.zoneCompHead = p.comp.head || null; }
       this.setState(patch);
       // Touch the stamp in place: the full write below can fail on quota and leave the old stamp standing.
       try { localStorage.setItem(Component.ZONE_SESSION_KEY, JSON.stringify({ ...p, at: Date.now() })); } catch {}
@@ -1395,7 +1525,8 @@ class Component extends DCLogic {
       : { ...r, candidates: [], derived: null, players: null, trimmed: true });
     const snap = { at: Date.now(), party: s.zoneParty || [], base: s.zoneBase || null,
       active: s.zoneActive || null, format: s.zoneFormat || null,
-      cands: s.zoneCands || [], tasks: s.zoneTasks || {}, runLog: log, baseline: s.zoneBaseline || null };
+      cands: s.zoneCands || [], tasks: s.zoneTasks || {}, runLog: log, baseline: s.zoneBaseline || null,
+      comp: { settings: s.zoneComp || null, rows: s.zoneCompRunning ? [] : s.zoneCompRows || [], head: s.zoneCompRunning ? null : s.zoneCompHead || null } };
     const put = payload => localStorage.setItem(Component.ZONE_SESSION_KEY, JSON.stringify(payload));
     try { put(snap); }
     catch { try { put({ ...snap, runLog: log.slice(0, 1).map(r => ({ ...r, derived: null })) }); }
@@ -2248,6 +2379,274 @@ class Component extends DCLogic {
         return { zoneParty: party, zoneBase: [...(s.zoneBase || []), JSON.parse(JSON.stringify(added))], zoneActive: this.zoneActiveNames(s),
           zoneSel: party.length - 1, zoneStatOpen: null }; });
     } catch (e) { this.setState({ zoneImportError: e?.message || String(e) }); }
+  }
+  // ── Best combination of loadouts (fork, 2026-10-17) ──
+  // Several loadouts of one character sit in the party as separate players: a second export of the same character
+  // imports as "Name (2)", and the panel's own paste box appends more without replacing the party. Players are
+  // grouped into characters by that name (or by hand), and the search runs every way of picking one loadout per
+  // character through one queued zone, every combination on the same seeds, so two combinations differ by their
+  // loadouts and not by their luck. A character marked Optional may also sit out, which compares party sizes too.
+  static COMP_DEFAULTS = { open: false, metric: "xp", hours: 1000, seeds: 2, target: 0, char: {}, role: {}, skip: {} };
+  // Each combination is a full simulation per seed, so the plan is refused past this many combinations.
+  static COMP_MAX = 300;
+  static compBase(name) { return String(name || "").replace(/\s\(\d+\)$/, ""); }
+  zoneCompSettings(s) { return { ...Component.COMP_DEFAULTS, ...(s.zoneComp || {}) }; }
+  setZoneComp(patch) { this.setState(s => ({ zoneComp: { ...this.zoneCompSettings(s), ...patch } })); }
+  /** The characters, in party order, each with its loadouts. An empty added player is nobody's loadout yet. */
+  zoneCompGroups(s) {
+    const c = this.zoneCompSettings(s), act = new Set(this.zoneActiveNames(s)), groups = new Map();
+    (s.zoneParty || []).forEach((p, i) => {
+      if (p?.record?._blank) return;
+      const name = this.zonePartyName(p, i), key = c.char[name] || Component.compBase(name);
+      if (!groups.has(key)) groups.set(key, { key, entries: [] });
+      groups.get(key).entries.push({ name, index: i, seated: act.has(name), on: !c.skip[name] });
+    });
+    // Until chosen, a character is in the party when one of its loadouts is seated, and left out otherwise.
+    return [...groups.values()].map(g => ({ ...g, role: c.role[g.key] || (g.entries.some(e => e.seated) ? "in" : "out"),
+      loadouts: g.entries.filter(e => e.on) }));
+  }
+  zoneCompTarget(s) {
+    const cands = s.zoneCands || [], c = this.zoneCompSettings(s);
+    return cands.length ? cands[Math.min(Math.max(0, Math.floor(Number(c.target)) || 0), cands.length - 1)] : null;
+  }
+  /** Every party the search would run: one loadout per character in it, none for an Optional one sitting out. */
+  zoneCompPlan(s) {
+    const groups = this.zoneCompGroups(s).filter(g => g.role !== "out" && g.loadouts.length);
+    const target = this.zoneCompTarget(s), zone = target && (s.zoneList || []).find(z => z.hrid === target.zone);
+    const cap = Math.min(Component.ZONE_MAX_PARTY, zone?.maxPartySize || Component.ZONE_MAX_PARTY);
+    const opts = groups.map(g => [...g.loadouts.map(e => e.name), ...(g.role === "maybe" ? [null] : [])]);
+    const raw = opts.reduce((n, o) => n * o.length, groups.length ? 1 : 0);
+    // Counted before it is built: ten characters with four loadouts each is a million parties.
+    if (raw > Component.COMP_MAX * 20) return { groups, target, zone, cap, combos: [], raw, tooMany: true };
+    let combos = [[]];
+    for (const o of opts) combos = combos.flatMap(c => o.map(n => [...c, n]));
+    combos = combos.map(c => c.filter(Boolean)).filter(c => c.length >= 1 && c.length <= cap);
+    return { groups, target, zone, cap, combos, raw, tooMany: combos.length > Component.COMP_MAX };
+  }
+  /** One run's figures, read the way the Results table reads a row. */
+  static compSummary(c) {
+    const ps = c.players || [], sum = f => ps.reduce((a, p) => a + (Number(f(p)) || 0), 0);
+    const same = ps.length > 0 && ps.every(p => p.profitPerHour === ps[0].profitPerHour);
+    const income = same ? ps[0].incomePerHour || 0 : sum(p => p.incomePerHour);
+    const expenses = same ? ps[0].expensesPerHour || 0 : sum(p => p.expensesPerHour);
+    return { xp: sum(p => p.experiencePerHour?.total), profit: (income - expenses) * 24, kills: Number(c.killsPerHour) || 0,
+      deaths: sum(p => p.deathsPerHour), rate: c.isDungeon ? Number(c.dungeonsCompletedPerHour) || 0 : Number(c.encountersPerHour) || 0,
+      each: Object.fromEntries(ps.map(p => [p.hrid, p.experiencePerHour?.total || 0])) };
+  }
+  /** Seeds averaged per combination, with the standard error of each mean once there are two seeds. */
+  static compRows(per) {
+    return per.map(x => {
+      const runs = x.runs.filter(Boolean);
+      if (!runs.length) return x.error ? { names: x.names, n: 0, error: x.error } : null;
+      const stat = k => { const v = runs.map(r => r[k]), m = v.reduce((a, b) => a + b, 0) / v.length;
+        const se = v.length > 1 ? Math.sqrt(v.reduce((a, b) => a + (b - m) ** 2, 0) / (v.length - 1) / v.length) : null;
+        return [m, se]; };
+      const out = { names: x.names, n: runs.length, error: null, se: {}, each: {} };
+      for (const k of ["xp", "profit", "kills", "deaths", "rate"]) [out[k], out.se[k]] = stat(k);
+      for (const n of x.names) out.each[n] = runs.reduce((a, r) => a + (r.each[n] || 0), 0) / runs.length;
+      return out;
+    }).filter(Boolean);
+  }
+  async runZoneComp() {
+    const s0 = this.state, plan = this.zoneCompPlan(s0);
+    if (!this.client || s0.zoneCompRunning || !plan.target || !plan.combos.length || plan.tooMany) return;
+    if (this.client?.zoneMarketRefresh) {   // the same freshness rule as Run
+      const m = this.state.zoneMarket, age = m?.timestamp ? Date.now() - Number(m.timestamp) : Infinity;
+      if (age > 59 * 60e3) await this.refreshZoneMarket();
+    }
+    const s = this.state, c = this.zoneCompSettings(s);
+    // The roles are written down as they stand: seating the winner changes which characters default to "in".
+    const role = { ...c.role }; for (const g of this.zoneCompGroups(s)) role[g.key] = g.role;
+    const hours = Math.min(8760, Math.max(1, Number(c.hours) || 1000)), seeds = Math.min(20, Math.max(1, Math.floor(Number(c.seeds)) || 1));
+    const seed0 = Math.floor(Number(s.zoneSeed) || 1) || 1, tasks = s.zoneTasks || {};
+    const byName = new Map((s.zoneParty || []).map((p, i) => [this.zonePartyName(p, i), p]));
+    const pricing = { ...Component.ZONE_PRICE_DEFAULTS, ...s.zonePricing };
+    if (!s.zoneConcOverride) delete pricing.drinkConcentration;
+    const body = { candidates: [{ zone: plan.target.zone, difficultyTier: plan.target.difficultyTier, hours }], hours, pricing, accountBuffs: s.zoneBuffs };
+    const waveRaw = String(s.zoneWaveMs ?? "").trim(), waveMs = Number(waveRaw);
+    if (waveRaw !== "" && Number.isFinite(waveMs)) body.waveTransitionDelayMs = waveMs;
+    const jobs = plan.combos.flatMap((names, ci) => Array.from({ length: seeds }, (_, k) => ({ ci, k })));
+    const per = plan.combos.map(names => ({ names, runs: new Array(seeds).fill(null), error: null }));
+    const head = { zone: plan.target.zone, difficultyTier: plan.target.difficultyTier, name: plan.zone?.name || plan.target.zone,
+      isDungeon: !!plan.zone?.isDungeon, hours, seeds, seed: seed0, chars: plan.groups.map(g => g.key), at: Date.now() };
+    this.setState({ zoneComp: { ...c, role }, zoneCompRunning: true, zoneCompError: null, zoneCompHead: head, zoneCompRows: [],
+      zoneCompProgress: { done: 0, total: jobs.length }, zoneCompStart: Date.now() });
+    this._compStopped = false;
+    let next = 0, done = 0;
+    // As many requests in flight as the pool has lanes: a request is one party, so the parties are the parallelism.
+    const lane = async () => {
+      for (;;) {
+        if (this._compStopped) return;
+        const j = jobs[next++]; if (!j) return;
+        const names = plan.combos[j.ci];
+        const players = names.map(n => { const p = byName.get(n);
+          return { ...p, record: { ...p.record, taskMonsterHrid: tasks[n] || tasks[Component.compBase(n)] || null } }; });
+        try {
+          const r = await this.client.zoneRun({ ...body, players, seed: seed0 + j.k });
+          const cand = (r?.candidates || [])[0];
+          if (!cand || cand.ok === false) per[j.ci].error = cand?.error || Component.t("refused");
+          else per[j.ci].runs[j.k] = Component.compSummary(cand);
+        } catch (e) { per[j.ci].error = `${e?.message || e}`.replace(/^\d{3}\s*/, ""); }
+        done++;
+        this.setState({ zoneCompProgress: { done, total: jobs.length }, zoneCompRows: Component.compRows(per) });
+      }
+    };
+    try { await Promise.all(Array.from({ length: Math.min(this.zoneLanes(), jobs.length) }, lane)); }
+    catch (e) { this.setState({ zoneCompError: `${e?.message || e}` }); }
+    this.setState({ zoneCompRunning: false, zoneCompProgress: null, zoneCompRows: Component.compRows(per),
+      zoneCompHead: { ...head, stopped: !!this._compStopped, ms: Date.now() - head.at } });
+  }
+  stopZoneComp() { this._compStopped = true; }
+  /** Seat one combination: the party on Setup becomes exactly these loadouts, ready for a full Run. */
+  zoneCompSeat(names) {
+    this.setState(s => { const have = new Set((s.zoneParty || []).map((p, i) => this.zonePartyName(p, i)));
+      const next = names.filter(n => have.has(n));
+      if (!next.length) return null;
+      const sel = (s.zoneParty || []).findIndex((p, i) => this.zonePartyName(p, i) === next[0]);
+      return { zoneActive: next, zoneCands: this.zoneFitCands(s.zoneCands, next.length, s.zoneList), zoneSel: sel < 0 ? s.zoneSel : sel,
+        zoneStale: !!s.zoneResult, zoneDerived: null }; });
+  }
+  // Appends, where the import box above replaces: the party, its edits and its seats stay as they are, and a name
+  // already taken gets the next free "(n)", so a second export of a character lands beside the first as a loadout.
+  async zoneCompAppend() {
+    const text = String(this.state.zoneCompText || "").trim();
+    if (!text || !this.client || this.state.zoneCompAppending) return;
+    const { payload, count } = this.zoneParsePaste(text);
+    if (!count) { this.setState({ zoneCompAppendError: Component.t("That does not read as a character export yet — paste the whole thing."), zoneCompAppendNote: "" }); return; }
+    this.setState({ zoneCompAppending: true, zoneCompAppendError: null, zoneCompAppendNote: "" });
+    try {
+      const r = await this.client.zoneImport(payload);
+      const got = this.zoneSortParty(this.zoneFillSlots(this.zoneFillShrine(r.players || []), this.state.zoneCatalog));
+      if (!got.length) throw new Error((r.errors || [])[0] || Component.t("no character in that paste"));
+      this.setState(s => {
+        const party = (s.zoneParty || []).slice(), base = (s.zoneBase || []).slice();
+        const taken = new Set(party.map((p, i) => this.zonePartyName(p, i))), added = [];
+        for (const p of got) {
+          let name = this.zonePartyName(p, party.length);
+          if (taken.has(name)) { const b = Component.compBase(name); let k = 2; while (taken.has(`${b} (${k})`)) k++; name = `${b} (${k})`; }
+          taken.add(name); added.push(name);
+          const q = { ...p, record: { ...p.record, name } };
+          party.push(q); base.push(JSON.parse(JSON.stringify(q)));
+        }
+        return { zoneParty: party, zoneBase: base, zoneActive: this.zoneActiveNames(s), zoneCompAppending: false, zoneCompText: "",
+          zoneWarnings: [...(s.zoneWarnings || []), ...(r.warnings || []), ...(r.errors || [])]
+            .filter(w => !/owned:\s*[\d,]+\s*entr(?:y|ies)\b[^.]*not combat gear/i.test(String(w))),
+          zoneCompAppendNote: Component.tf("Added {names}", { names: added.join(", ") }) };
+      });
+    } catch (e) { this.setState({ zoneCompAppending: false, zoneCompAppendError: `${e?.message || e}`.replace(/^\d{3}\s*/, "") }); }
+  }
+  zoneCompVals(s, { nf, nice, coin, big }) {
+    const c = this.zoneCompSettings(s), party = s.zoneParty || [];
+    const groups = this.zoneCompGroups(s), plan = this.zoneCompPlan(s), cands = s.zoneCands || [], zones = s.zoneList || [];
+    const loadouts = groups.reduce((a, g) => a + g.entries.length, 0), multi = groups.some(g => g.entries.length > 1);
+    const segOn = "background:color-mix(in srgb, var(--color-accent-700) 34%, transparent);color:var(--color-text)";
+    const segOff = "background:transparent;color:var(--color-neutral-300)";
+    const roleOpts = [{ value: "in", label: Component.t("In the party") }, { value: "maybe", label: Component.t("Optional") }, { value: "out", label: Component.t("Left out") }];
+    const charOpts = [...groups.map(g => ({ value: g.key, label: g.key })), { value: "\u0000own", label: Component.t("Its own character") }];
+    // What tells two loadouts of one character apart at a glance: the weapon, and the main stat it fights with.
+    const slotOf = this.zoneSlotMap(s.zoneCatalog);
+    const weapon = p => { const w = (p?.loadout?.equipment || []).find(x => /main_hand|two_hand/.test(x?.itemLocationHrid || slotOf?.get(x?.itemHrid) || ""));
+      return w ? `${nice(w.itemHrid)}${w.enhancementLevel ? ` +${w.enhancementLevel}` : ""}` : ""; };
+    const statLine = p => { const st = Component.mainStat(p), L = p?.record?.levels || {}; return L[st] ? `${Component.t(nice(st))} ${L[st]}` : ""; };
+    const hours = Number(c.hours) || 1000, seeds = Math.max(1, Math.floor(Number(c.seeds)) || 1);
+    const LIM = { ...Component.ZONE_LIMIT_DEFAULTS, ...(s.zoneLimits || {}) };
+    const pace = this.zoneOnly ? this.zonePace() : null;
+    const perCandHour = pace?.secondsPerCandidateHour > 0 ? pace.secondsPerCandidateHour : LIM.secondsPerCandidateHour;
+    const sims = plan.combos.length * seeds;
+    const estSec = Component.laneHours(new Array(sims).fill(hours), LIM.concurrency) * perCandHour;
+    const secText = x => x < 90 ? Component.tf("about {n} seconds", { n: Math.max(1, Math.round(x)) })
+      : x < 5400 ? Component.tf("about {n} minutes", { n: Math.round(x / 60) }) : Component.tf("about {n} hours", { n: nf(x / 3600, 1) });
+    const block = !cands.length ? Component.t("Queue a zone above first")
+      : !plan.groups.length ? Component.t("Put a character in the party")
+      : plan.tooMany ? Component.tf("Too many combinations (more than {max})", { max: Component.COMP_MAX })
+      : !plan.combos.length ? Component.tf("No combination fits a party of {cap}", { cap: plan.cap }) : "";
+    const zoneName = t => { const z = zones.find(x => x.hrid === t?.zone); return t ? `${Component.t(z?.name || t.zone)} · T${t.difficultyTier}` : ""; };
+
+    // ── the ranking ──
+    const head = s.zoneCompHead, metric = c.metric;
+    const val = r => metric === "profit" ? r.profit : metric === "kills" ? r.kills : r.xp;
+    const ok = (s.zoneCompRows || []).filter(r => !r.error), bad = (s.zoneCompRows || []).filter(r => r.error);
+    const ranked = ok.slice().sort((a, b) => val(b) - val(a)), best = ranked.length ? val(ranked[0]) : 0;
+    const chars = head?.chars || [];
+    const current = new Set(this.zoneActiveNames(s));
+    const fmt = { xp: big, profit: coin, kills: v => nf(v, 1) };
+    const pm = (r, k) => r.se?.[k] != null ? ` ± ${fmt[k](2 * r.se[k])}` : "";
+    const metricLabel = { xp: Component.t("XP / h"), profit: Component.t("Profit / day"), kills: Component.t("Kills / h") };
+    const rateLabel = head?.isDungeon ? Component.t("Clears / h") : Component.t("Enc / h");
+    const pickOf = (r, key) => r.names.find(n => (c.char[n] || Component.compBase(n)) === key) || null;
+    const rows = [...ranked, ...bad].map((r, i) => {
+      const isCur = r.names.length === current.size && r.names.every(n => current.has(n));
+      const delta = !r.error && best ? (val(r) - best) / Math.abs(best) : 0;
+      return {
+        rank: r.error ? "—" : String(i + 1),
+        picks: chars.map(k => { const n = pickOf(r, k), p = party.find((q, j) => this.zonePartyName(q, j) === n);
+          return { text: n || Component.t("sits out"), style: n ? "" : "color:var(--color-neutral-400);font-style:italic",
+            tip: n ? [weapon(p), statLine(p), r.each?.[n] != null ? Component.tf("{n} XP / h", { n: big(r.each[n]) }) : ""].filter(Boolean).join(" · ") : "" }; }),
+        xp: r.error ? "" : big(r.xp), profit: r.error ? "" : coin(r.profit), kills: r.error ? "" : nf(r.kills, 1),
+        rate: r.error ? "" : nf(r.rate, 2), deaths: r.error ? "" : nf(r.deaths, 2),
+        tip: r.error ? r.error : [`${metricLabel.xp} ${big(r.xp)}${pm(r, "xp")}`, `${metricLabel.profit} ${coin(r.profit)}${pm(r, "profit")}`,
+          `${metricLabel.kills} ${nf(r.kills, 1)}${pm(r, "kills")}`, r.n > 1 ? Component.tf("mean of {n} seeds; ± is two standard errors", { n: r.n }) : Component.t("one seed")].join("\n"),
+        delta: r.error ? r.error : i === 0 ? Component.t("best") : `${(delta * 100).toFixed(2)}%`,
+        deltaStyle: r.error ? "color:var(--color-accent-2-300)" : i === 0 ? "color:var(--color-accent-300)" : "color:var(--color-neutral-300)",
+        rowStyle: isCur ? "color:var(--color-accent-300);font-weight:600" : "",
+        current: isCur, seatable: !r.error && !isCur,
+        seat: () => this.zoneCompSeat(r.names),
+      };
+    });
+    const top2 = ranked.length > 1;
+    // Whether the leader is clear of the runner-up by more than the two of them could move between seeds.
+    const k = metric, gap = top2 ? val(ranked[0]) - val(ranked[1]) : 0;
+    const noise = top2 && ranked[0].se?.[k] != null && ranked[1].se?.[k] != null ? 2 * Math.hypot(ranked[0].se[k], ranked[1].se[k]) : null;
+    const pct = s.zoneCompRunning && s.zoneCompProgress ? Math.round(100 * s.zoneCompProgress.done / Math.max(1, s.zoneCompProgress.total)) : 0;
+
+    return {
+      has: party.length > 0,
+      open: !!c.open, caret: c.open ? "▾" : "▸", toggle: () => this.setZoneComp({ open: !c.open }),
+      summary: Component.tf("{chars} characters · {n} loadouts", { chars: groups.length, n: loadouts }) + (plan.combos.length && !block ? Component.tf(" · {n} combinations", { n: plan.combos.length }) : ""),
+      intro: Component.t("Give a character several loadouts — paste another export of it below and it joins as “Name (2)”, or Add player and Copy loadout from — then find which loadout of each character makes the best party. Every combination runs on the same seeds, so they differ by their loadouts and not by luck."),
+      multiNote: multi ? "" : Component.t("Every character has one loadout so far: the search has nothing to choose between until one has two."),
+      chars: groups.map(g => ({ key: g.key, role: g.role, roleOpts,
+        count: g.entries.length === 1 ? Component.t("1 loadout") : Component.tf("{n} loadouts", { n: g.entries.length }),
+        style: g.role === "out" ? "opacity:0.6" : "",
+        setRole: e => this.setZoneComp({ role: { ...c.role, [g.key]: e.target.value } }),
+        loadouts: g.entries.map(e => { const p = party[e.index];
+          return { name: e.name, on: e.on, sub: [weapon(p), statLine(p), e.seated ? Component.t("seated") : ""].filter(Boolean).join(" · "),
+            toggle: () => this.setZoneComp({ skip: { ...c.skip, [e.name]: e.on } }),
+            char: g.key, charOpts,
+            setChar: ev => { const v = ev.target.value, ch = { ...c.char };
+              if (v === "\u0000own") { if (Component.compBase(e.name) !== e.name || g.key !== e.name) ch[e.name] = e.name; else delete ch[e.name]; }
+              else if (v === Component.compBase(e.name)) delete ch[e.name]; else ch[e.name] = v;
+              this.setZoneComp({ char: ch }); } }; }) })),
+      text: s.zoneCompText, setText: e => this.setState({ zoneCompText: e.target.value, zoneCompAppendError: null }),
+      append: () => this.zoneCompAppend(), appendDisabled: !!s.zoneCompAppending || !String(s.zoneCompText || "").trim(),
+      appendLabel: s.zoneCompAppending ? Component.t("Adding…") : Component.t("Add to party"),
+      appendNote: s.zoneCompAppendNote || "", appendError: s.zoneCompAppendError || "", hasAppendError: !!s.zoneCompAppendError,
+      noTarget: !cands.length, hasTarget: cands.length > 0,
+      target: String(Math.min(Math.max(0, Math.floor(Number(c.target)) || 0), Math.max(0, cands.length - 1))),
+      targetOpts: cands.map((t, i) => ({ value: String(i), label: zoneName(t) })),
+      setTarget: e => this.setZoneComp({ target: Number(e.target.value) || 0 }),
+      capNote: plan.target ? Component.tf("{zone} seats {cap}.", { zone: zoneName(plan.target), cap: plan.cap }) : "",
+      hours: String(c.hours), setHours: e => this.setZoneComp({ hours: e.target.value }),
+      seeds: String(c.seeds), setSeeds: e => this.setZoneComp({ seeds: e.target.value }),
+      planNote: block ? "" : Component.tf("{n} combinations × {seeds} seeds = {sims} simulations of {h} h · {t} at {lanes} at a time.",
+        { n: plan.combos.length, seeds, sims, h: nf(hours), t: secText(estSec), lanes: LIM.concurrency }),
+      runDisabled: !!block || !!s.zoneCompRunning || !this.client,
+      runLabel: s.zoneCompRunning ? Component.t("Searching…") : block || (plan.combos.length === 1 ? Component.t("Run 1 combination") : Component.tf("Run {n} combinations", { n: plan.combos.length })),
+      run: () => this.runZoneComp(), stop: () => this.stopZoneComp(), running: !!s.zoneCompRunning,
+      progressPct: String(pct), progressStyle: `width:${pct}%;height:100%;background:var(--color-accent-2-400);transition:width 0.3s`,
+      progressLabel: s.zoneCompProgress ? `${s.zoneCompProgress.done} / ${s.zoneCompProgress.total}` : "",
+      error: s.zoneCompError || "", hasError: !!s.zoneCompError,
+      metrics: ["xp", "profit", "kills"].map(m => ({ label: metricLabel[m], style: m === metric ? segOn : segOff, pick: () => this.setZoneComp({ metric: m }) })),
+      hasRows: rows.length > 0, rows,
+      cols: chars.map(k => ({ label: k })),
+      rateLabel,
+      gridStyle: `grid-template-columns:28px repeat(${Math.max(1, chars.length)}, minmax(110px,1fr)) repeat(5, max-content) 72px max-content`,
+      headLine: head ? `${zoneName(head)} · ${nf(head.hours)} h × ${head.seeds === 1 ? Component.t("1 seed") : Component.tf("{n} seeds", { n: head.seeds })}${head.stopped ? Component.t(" · stopped early") : ""}` : "",
+      verdict: s.zoneCompRunning || !top2 ? ""
+        : noise == null ? Component.t("One seed per combination: run two or more to see whether the leader's margin is more than luck.")
+        : gap > noise ? Component.tf("The best combination leads the next by {gap} ({pct}%), more than the two could differ by chance (± {noise}).", { gap: fmt[k](gap), pct: (100 * gap / Math.abs(val(ranked[1]) || 1)).toFixed(2), noise: fmt[k](noise) })
+        : Component.tf("The top two are within chance of each other (lead {gap}, ± {noise}): more seeds or hours would separate them.", { gap: fmt[k](gap), noise: fmt[k](noise) }),
+    };
   }
   // LOAD-1 (live, 2026-09-16): /zone-sim/import answers equipment as { itemHrid, enhancementLevel } — the slot
   // is implied by the item, not stated. The doll reads slots, so the slot is resolved from the catalog's own
@@ -4017,6 +4416,7 @@ class Component extends DCLogic {
             iconId: z.iconId || z.hrid.split("/").pop(), glyph: "ph-skull" })) }],
       editor: this.zoneEditorVals(s, set, { nf, nice }),
       cmp: this.zoneCompareVals(s, set, { nf, nice, coin }),
+      comp: this.zoneCompVals(s, { nf, nice, coin, big }),
       listError: s.zoneListError || "", hasListError: !!s.zoneListError,
       pickZone: pick, setZone: e => set({ zonePick: typeof e === "string" ? e : e.target.value, zoneTier: 0 }),
       // One grouped list for the picker: batches first, then dungeons, then planets — the same order the
