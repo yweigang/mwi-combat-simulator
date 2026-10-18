@@ -768,6 +768,134 @@
   </div>
   </sc-if>
 
+  <!-- Best abilities (fork, 2026-10-18): every ability the character has, at its level, and which set of them
+       fills the slots best. -->
+  <sc-if value="{{ zone.abil.has }}" hint-placeholder-val="{{ false }}">
+  <div data-tour="abil" style="display:flex;flex-direction:column;gap:var(--space-3);padding-top:var(--space-3);border-top:1px solid var(--color-divider)">
+    <button class="btn btn-ghost" style="padding:1px 0;border-color:transparent;justify-content:flex-start;display:flex;gap:9px;align-items:baseline;width:100%;text-align:left" onClick="{{ zone.abil.toggle }}">
+      <span style="font-size:12px;letter-spacing:0.06em;text-transform:uppercase;flex:none;color:var(--color-accent-300)">{{ zone.abil.caret }} Best abilities</span>
+      <span class="text-muted" style="font-size:12px;margin-left:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ zone.abil.summary }}</span>
+    </button>
+    <sc-if value="{{ zone.abil.open }}" hint-placeholder-val="{{ false }}">
+      <div class="text-muted" style="font-size:12.5px;text-wrap:pretty;max-width:100ch">{{ zone.abil.intro }}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:var(--space-4) var(--space-6);align-items:start">
+        <!-- the character and every ability's level -->
+        <div style="display:flex;flex-direction:column;gap:var(--space-2);min-width:0">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select class="input" style="min-height:29px;padding:2px 6px;font-size:12.5px;width:auto;flex:none" title="The player whose abilities are searched" value="{{ zone.abil.player }}" onChange="{{ zone.abil.setPlayer }}">
+              <sc-for list="{{ zone.abil.playerOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.value }}">{{ o.label }}</option></sc-for>
+            </select>
+            <label style="display:flex;gap:6px;align-items:center;font-size:12.5px;cursor:pointer" title="Leave out damage abilities of another combat style: they cannot land with this character's weapon">
+              <input type="checkbox" style="cursor:pointer;margin:0" checked="{{ zone.abil.fit }}" onChange="{{ zone.abil.toggleFit }}">
+              <span>{{ zone.abil.fitLabel }}</span>
+            </label>
+            <button class="btn btn-ghost" style="padding:1px 8px;font-size:12px;margin-left:auto;flex:none" title="Forget the levels typed in here and go back to the export's" disabled="{{ zone.abil.resetDisabled }}" onClick="{{ zone.abil.reset }}">Back to export levels</button>
+          </div>
+          <div style="max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px">
+            <sc-for list="{{ zone.abil.groups }}" as="g" hint-placeholder-count="3">
+              <div style="display:flex;flex-direction:column;gap:3px">
+                <span class="text-muted" style="font-size:11.5px;letter-spacing:0.05em;text-transform:uppercase">{{ g.label }}</span>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:3px 12px">
+                  <sc-for list="{{ g.items }}" as="a" hint-placeholder-count="6">
+                    <div style="display:grid;grid-template-columns:minmax(0,1fr) 58px;gap:6px;align-items:center;font-size:12.5px;{{ a.style }}" title="{{ a.tip }}">
+                      <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ a.label }}</span>
+                      <input class="input" type="number" min="0" max="200" step="1" placeholder="0" style="min-height:25px;padding:0 5px;font-size:12px;font-variant-numeric:tabular-nums;{{ a.inputStyle }}" value="{{ a.level }}" onInput="{{ a.setLevel }}">
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <!-- where, how long, and the search -->
+        <div style="display:flex;flex-direction:column;gap:var(--space-3);min-width:0">
+          <div style="display:grid;grid-template-columns:96px minmax(0,1fr);gap:6px 9px;align-items:center;font-size:13px">
+            <span class="text-muted" style="font-size:12.5px">Zone</span>
+            <dc-import name="IconPick" value="{{ zone.abil.zone }}" groups="{{ zone.abil.zoneGroups }}" on-pick="{{ zone.abil.setZone }}"
+              placeholder="Pick a zone" height="{{ 29 }}" font-size="{{ 12.5 }}" fallback-glyph="ph-planet" hint-size="100%,29px"></dc-import>
+            <span class="text-muted" style="font-size:12.5px">Tier</span>
+            <select class="input" style="min-height:29px;padding:2px 6px;font-size:12.5px;width:90px" value="{{ zone.abil.tier }}" onChange="{{ zone.abil.setTier }}">
+              <sc-for list="{{ zone.abil.tierOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.value }}">{{ o.label }}</option></sc-for>
+            </select>
+            <span class="text-muted" style="font-size:12.5px">Normal slots</span>
+            <input class="input" type="number" min="0" max="4" step="1" title="Empty: the slots the character's Intelligence opens" placeholder="{{ zone.abil.slotsPlaceholder }}" style="min-height:29px;padding:2px 6px;font-size:12.5px;width:90px;font-variant-numeric:tabular-nums" value="{{ zone.abil.slots }}" onInput="{{ zone.abil.setSlots }}">
+            <span class="text-muted" style="font-size:12.5px">Hours per seed</span>
+            <input class="input" type="number" min="1" max="8760" step="1" style="min-height:29px;padding:2px 6px;font-size:12.5px;width:90px;font-variant-numeric:tabular-nums" value="{{ zone.abil.hours }}" onInput="{{ zone.abil.setHours }}">
+            <span class="text-muted" style="font-size:12.5px">Seeds</span>
+            <input class="input" type="number" min="1" max="20" step="1" style="min-height:29px;padding:2px 6px;font-size:12.5px;width:90px;font-variant-numeric:tabular-nums" value="{{ zone.abil.seeds }}" onInput="{{ zone.abil.setSeeds }}">
+            <span class="text-muted" style="font-size:12.5px">Best by</span>
+            <div class="seg" style="justify-self:start">
+              <sc-for list="{{ zone.abil.metrics }}" as="m" hint-placeholder-count="3">
+                <button class="seg-opt" style="font-size:12.5px;border:0;{{ m.style }}" onClick="{{ m.pick }}">{{ m.label }}</button>
+              </sc-for>
+            </div>
+          </div>
+          <div class="text-muted" style="font-size:12.5px;text-wrap:pretty">{{ zone.abil.slotNote }} {{ zone.abil.partyNote }} Seeds start at the Seed under Advanced; pricing, buffs, tasks and the wave delay are Setup's.</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button class="btn" style="padding:4px 16px;font-size:13.5px;font-weight:600;flex:none;color:var(--color-accent-2-200);border-color:color-mix(in srgb, var(--color-accent-2-500) 65%, transparent);background:color-mix(in srgb, var(--color-accent-2-700) 30%, transparent)" style-hover="background:color-mix(in srgb, var(--color-accent-2-600) 42%, transparent);color:var(--color-accent-2-100)" disabled="{{ zone.abil.runDisabled }}" onClick="{{ zone.abil.run }}">{{ zone.abil.runLabel }}</button>
+            <sc-if value="{{ zone.abil.running }}" hint-placeholder-val="{{ false }}">
+              <button class="btn btn-ghost" style="padding:3px 10px;font-size:13px;flex:none" title="The sets already running finish; nothing else starts" onClick="{{ zone.abil.stop }}">Stop</button>
+            </sc-if>
+          </div>
+          <sc-if value="{{ zone.abil.running }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;gap:10px;align-items:center;max-width:520px">
+              <div role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ zone.abil.progressPct }}" style="flex:1;height:7px;border-radius:99px;overflow:hidden;background:color-mix(in srgb, var(--color-accent-2-500) 16%, transparent)">
+                <div style="{{ zone.abil.progressStyle }}"></div>
+              </div>
+              <span style="font-size:12.5px;font-variant-numeric:tabular-nums;flex:none;color:var(--color-accent-2-200)">{{ zone.abil.progressLabel }}</span>
+            </div>
+          </sc-if>
+          <div class="text-muted" style="font-size:12.5px;text-wrap:pretty">{{ zone.abil.planNote }}</div>
+          <sc-if value="{{ zone.abil.hasError }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--color-accent-2-300);text-wrap:pretty">{{ zone.abil.error }}</div></sc-if>
+        </div>
+      </div>
+
+      <!-- the ranking -->
+      <sc-if value="{{ zone.abil.hasRows }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <span class="text-muted" style="font-size:12.5px">{{ zone.abil.headLine }}</span>
+          <div style="overflow-x:auto;max-height:520px;overflow-y:auto">
+            <div style="display:grid;grid-template-columns:28px minmax(280px,1fr) repeat(4, max-content) 72px max-content;gap:3px 12px;align-items:center;font-size:12.5px;min-width:max-content;padding:2px 4px">
+              <span class="text-muted" style="font-size:11.5px">#</span>
+              <span class="text-muted" style="font-size:11.5px">Abilities and levels (★ special; highlighted: not in the starting loadout)</span>
+              <span class="text-muted" style="font-size:11.5px;text-align:right">XP / h</span>
+              <span class="text-muted" style="font-size:11.5px;text-align:right">Profit / day</span>
+              <span class="text-muted" style="font-size:11.5px;text-align:right">Kills / h</span>
+              <span class="text-muted" style="font-size:11.5px;text-align:right">Deaths / h</span>
+              <span class="text-muted" style="font-size:11.5px;text-align:right">vs best</span>
+              <span></span>
+              <sc-for list="{{ zone.abil.rows }}" as="r" hint-placeholder-count="4">
+                <div style="display:contents" title="{{ r.tip }}">
+                  <span style="font-variant-numeric:tabular-nums;padding:2px 0;{{ r.rowStyle }}">{{ r.rank }}</span>
+                  <span style="display:flex;flex-wrap:wrap;gap:0 10px;min-width:0;{{ r.rowStyle }}">
+                    <sc-for list="{{ r.picks }}" as="p" hint-placeholder-count="4"><span style="white-space:nowrap;{{ p.style }}" title="{{ p.tip }}">{{ p.text }}</span></sc-for>
+                  </span>
+                  <span style="text-align:right;font-variant-numeric:tabular-nums">{{ r.xp }}</span>
+                  <span style="text-align:right;font-variant-numeric:tabular-nums">{{ r.profit }}</span>
+                  <span style="text-align:right;font-variant-numeric:tabular-nums">{{ r.kills }}</span>
+                  <span style="text-align:right;font-variant-numeric:tabular-nums">{{ r.deaths }}</span>
+                  <span style="text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;{{ r.deltaStyle }}">{{ r.delta }}</span>
+                  <span>
+                    <sc-if value="{{ r.applicable }}" hint-placeholder-val="{{ true }}"><button class="btn btn-ghost" style="padding:0 8px;font-size:12px" title="Put these abilities, at these levels, in the player's loadout on Setup" onClick="{{ r.apply }}">Apply</button></sc-if>
+                    <sc-if value="{{ r.current }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--color-accent-300);text-transform:uppercase;letter-spacing:0.05em">in loadout</span></sc-if>
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <sc-if value="{{ zone.abil.verdict }}" hint-placeholder-val="{{ false }}"><div style="font-size:12.5px;text-wrap:pretty">{{ zone.abil.verdict }}</div></sc-if>
+          <sc-if value="{{ zone.abil.hasSteps }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:2px;font-size:12.5px">
+              <sc-for list="{{ zone.abil.steps }}" as="st" hint-placeholder-count="2"><span>{{ st.text }}</span></sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ zone.abil.stepsNote }}" hint-placeholder-val="{{ false }}"><div class="text-muted" style="font-size:12.5px;text-wrap:pretty">{{ zone.abil.stepsNote }}</div></sc-if>
+        </div>
+      </sc-if>
+    </sc-if>
+  </div>
+  </sc-if>
+
   <!-- run options -->
   <div data-tour="pricing" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(272px,1fr));gap:var(--space-4) var(--space-6);align-items:start;padding-top:var(--space-2);border-top:1px solid var(--color-divider)">
     <div style="display:flex;flex-direction:column;gap:8px;align-self:start;min-width:0">
@@ -1341,6 +1469,8 @@ class Component extends DCLogic {
     // Best combination of loadouts: its settings (zoneCompSettings fills the rest), the last search and the paste box.
     zoneComp: null, zoneCompRunning: false, zoneCompProgress: null, zoneCompRows: [], zoneCompHead: null, zoneCompError: null,
     zoneCompText: "", zoneCompAppending: false, zoneCompAppendError: null, zoneCompAppendNote: "",
+    // Best abilities: its settings (zoneAbilSettings fills the rest, the ability levels among them) and the last search.
+    zoneAbil: null, zoneAbilRunning: false, zoneAbilProgress: null, zoneAbilRows: [], zoneAbilHead: null, zoneAbilError: null,
     zoneRestoredAt: null, zoneCmp: { a: null, b: null }, zoneCmpGrain: "totals",
     // Default view (operator, 2026-09-16): every result section collapsed to its header, which carries the total.
     zoneSecOpen: { rates: true, xp: false, damage: false, consumables: false, lootIn: false, lootOut: false },
@@ -1519,6 +1649,7 @@ class Component extends DCLogic {
       if (Array.isArray(p.runLog)) patch.zoneRunLog = p.runLog;
       if (p.baseline) patch.zoneBaseline = p.baseline;
       if (p.comp) { patch.zoneComp = p.comp.settings || null; patch.zoneCompRows = p.comp.rows || []; patch.zoneCompHead = p.comp.head || null; }
+      if (p.abil) { patch.zoneAbil = p.abil.settings || null; patch.zoneAbilRows = p.abil.rows || []; patch.zoneAbilHead = p.abil.head || null; }
       this.setState(patch);
       // Touch the stamp in place: the full write below can fail on quota and leave the old stamp standing.
       try { localStorage.setItem(Component.ZONE_SESSION_KEY, JSON.stringify({ ...p, at: Date.now() })); } catch {}
@@ -1538,7 +1669,8 @@ class Component extends DCLogic {
     const snap = { at: Date.now(), party: s.zoneParty || [], base: s.zoneBase || null,
       active: s.zoneActive || null, format: s.zoneFormat || null,
       cands: s.zoneCands || [], tasks: s.zoneTasks || {}, runLog: log, baseline: s.zoneBaseline || null,
-      comp: { settings: s.zoneComp || null, rows: s.zoneCompRunning ? [] : s.zoneCompRows || [], head: s.zoneCompRunning ? null : s.zoneCompHead || null } };
+      comp: { settings: s.zoneComp || null, rows: s.zoneCompRunning ? [] : s.zoneCompRows || [], head: s.zoneCompRunning ? null : s.zoneCompHead || null },
+      abil: { settings: s.zoneAbil || null, rows: s.zoneAbilRunning ? [] : s.zoneAbilRows || [], head: s.zoneAbilRunning ? null : s.zoneAbilHead || null } };
     const put = payload => localStorage.setItem(Component.ZONE_SESSION_KEY, JSON.stringify(payload));
     try { put(snap); }
     catch { try { put({ ...snap, runLog: log.slice(0, 1).map(r => ({ ...r, derived: null })) }); }
@@ -2419,8 +2551,10 @@ class Component extends DCLogic {
   }
   // The search's own zone and tier, picked in the panel from every zone. Until one is picked it starts from the
   // first queued row, or else the first full-party planet.
-  zoneCompTarget(s) {
-    const c = this.zoneCompSettings(s), zones = s.zoneList || [], q = (s.zoneCands || [])[0];
+  zoneCompTarget(s) { return this.zonePickTarget(s, this.zoneCompSettings(s)); }
+  // Shared by the panels that pick their own zone: `c` carries the picked zone and tier.
+  zonePickTarget(s, c) {
+    const zones = s.zoneList || [], q = (s.zoneCands || [])[0];
     const z = zones.find(x => x.hrid === c.zone) || zones.find(x => x.hrid === q?.zone)
       || zones.find(x => !x.isDungeon && x.maxPartySize > 1) || zones[0];
     if (!z) return null;
@@ -2740,6 +2874,337 @@ class Component extends DCLogic {
       verdict: s.zoneCompRunning || !top2 ? ""
         : noise == null ? Component.t("One seed per combination: run two or more to see whether the leader's margin is more than luck.")
         : gap > noise ? Component.tf("The best combination leads the next by {gap} ({pct}%), more than the two could differ by chance (± {noise}).", { gap: fmt[k](gap), pct: (100 * gap / Math.abs(val(ranked[1]) || 1)).toFixed(2), noise: fmt[k](noise) })
+        : Component.tf("The top two are within chance of each other (lead {gap}, ± {noise}): more seeds or hours would separate them.", { gap: fmt[k](gap), noise: fmt[k](noise) }),
+    };
+  }
+  // ── Best abilities (fork, 2026-10-18) ──
+  // Every ability the character has, at the level they have it (from the export's owned list, the loadout, or
+  // typed in), and which set of them fills the slots best: one player's abilities change, the rest of the seated
+  // party stays as it is, and every set runs on the same seeds. A pool small enough is run whole; past
+  // ABIL_MAX sets the search starts from the loadout's own set and takes the best single swap each round
+  // until no swap improves it.
+  static ABIL_DEFAULTS = { open: false, player: null, metric: "xp", hours: 300, seeds: 2, zone: null, tier: null, levels: {}, fit: true, slots: null };
+  static ABIL_MAX = 300;
+  static ABIL_ROUNDS = 12;
+  // The normal slots open at these Intelligence levels (the game's abilitySlotsLevelRequirementList, after the
+  // special slot, which is open from the start).
+  static ABIL_SLOT_INT = [1, 20, 50, 90];
+  zoneAbilSettings(s) { return { ...Component.ABIL_DEFAULTS, ...(s.zoneAbil || {}) }; }
+  setZoneAbil(patch) { this.setState(s => ({ zoneAbil: { ...this.zoneAbilSettings(s), ...patch } })); }
+  static abilKey(set) { return `${set.special || ""}|${[...set.normal].sort().join(",")}`; }
+  static abilParse(key) { const [sp, n] = String(key).split("|"); return { special: sp || null, normal: n ? n.split(",") : [] }; }
+  /** The searched player: the one picked in the panel, else the one open in the editor. */
+  zoneAbilWho(s) {
+    const c = this.zoneAbilSettings(s), party = s.zoneParty || [];
+    const names = party.map((p, i) => this.zonePartyName(p, i));
+    let index = names.indexOf(c.player);
+    if (index < 0 || party[index]?.record?._blank) index = party[s.zoneSel]?.record?._blank ? party.findIndex(p => !p?.record?._blank) : s.zoneSel ?? 0;
+    const p = party[index];
+    return p ? { name: names[index], index, p, base: Component.compBase(names[index]) } : null;
+  }
+  /** Every ability's level for this character: typed in here, else owned, else slotted, else 0 (not learned). */
+  zoneAbilLevels(s, who) {
+    const c = this.zoneAbilSettings(s), typed = c.levels[who?.base] || {}, out = new Map();
+    const owned = who?.p?.record?.owned || who?.p?.owned || null;
+    for (const a of owned?.abilities || []) if (a?.abilityHrid) out.set(a.abilityHrid, Number(a.level) || 0);
+    for (const a of who?.p?.loadout?.abilities || []) if (a?.hrid && !out.get(a.hrid)) out.set(a.hrid, Number(a.level) || 0);
+    const auto = new Map(out);
+    for (const [h, v] of Object.entries(typed)) out.set(h, Number(v) || 0);
+    return { levels: out, auto, typed };
+  }
+  zoneAbilPlan(s) {
+    const c = this.zoneAbilSettings(s), who = this.zoneAbilWho(s), defs = s.zoneCatalog?.abilities || [];
+    const target = this.zonePickTarget(s, c), zone = target && (s.zoneList || []).find(z => z.hrid === target.zone);
+    const cap = Math.min(Component.ZONE_MAX_PARTY, zone?.maxPartySize || Component.ZONE_MAX_PARTY);
+    if (!who || !defs.length) return { who, target, zone, cap, block: !defs.length ? Component.t("Loading the abilities…") : Component.t("Import a character first") };
+    const { levels } = this.zoneAbilLevels(s, who);
+    // What the character fights with decides which damage abilities can land: a bow fires no Fireball.
+    const style = Component.mainStat(who.p) === "defense" ? "melee" : Component.mainStat(who.p);
+    const fits = d => { const f = d.families || [];
+      return !f.length || f.some(x => !["melee", "ranged", "magic"].includes(x)) || f.includes(style); };
+    const pool = defs.filter(d => (levels.get(d.abilityHrid) || 0) > 0 && (!c.fit || fits(d)));
+    const normal = pool.filter(d => !d.isSpecial).map(d => d.abilityHrid), special = pool.filter(d => d.isSpecial).map(d => d.abilityHrid);
+    const intel = Number(who.p.record?.levels?.intelligence) || 1;
+    const slotsAuto = Component.ABIL_SLOT_INT.filter(l => intel >= l).length;
+    const slots = c.slots != null && c.slots !== "" ? Math.min(4, Math.max(0, Math.floor(Number(c.slots)) || 0)) : slotsAuto;
+    const k = Math.min(slots, normal.length);
+    // The run is the seated party with this player's abilities swapped; a player who is not seated runs alone.
+    const act = this.zoneActiveNames(s), party = act.includes(who.name) ? act : [who.name];
+    // Counted before built: C(30, 4) is 27 405 sets.
+    let count = 1; for (let i = 0; i < k; i++) count = count * (normal.length - i) / (i + 1);
+    count = Math.round(count) * Math.max(1, special.length);
+    const mode = count <= Component.ABIL_MAX ? "all" : "local";
+    const cur = (who.p.loadout?.abilities || []).map(a => a?.hrid).filter(Boolean);
+    const start = { special: cur.find(h => special.includes(h)) || special[0] || null,
+      normal: cur.filter(h => normal.includes(h)).slice(0, k) };
+    const block = !target ? Component.t("Pick a zone")
+      : party.length > cap ? Component.tf("The seated party does not fit {cap} seats", { cap })
+      : !pool.length ? Component.t("Give the character a level in at least one ability") : "";
+    return { who, target, zone, cap, levels, style, fits, pool, normal, special, intel, slots, slotsAuto, k, party, count, mode, start, block };
+  }
+  /** Every set of k from the pool, each with every special (or none when no special is learned). */
+  static abilAllSets(plan) {
+    const out = [], pick = (from, left, acc) => {
+      if (!left) { for (const sp of plan.special.length ? plan.special : [null]) out.push({ special: sp, normal: acc }); return; }
+      for (let i = from; i <= plan.normal.length - left; i++) pick(i + 1, left - 1, [...acc, plan.normal[i]]);
+    };
+    pick(0, plan.k, []);
+    return out;
+  }
+  /** One swap away: a normal slot takes another ability, an empty slot is filled, or another special goes in. */
+  static abilNeighbors(cur, plan) {
+    const out = [], have = new Set(cur.normal);
+    cur.normal.forEach((_, i) => { for (const h of plan.normal) if (!have.has(h)) out.push({ special: cur.special, normal: cur.normal.map((x, j) => j === i ? h : x) }); });
+    if (cur.normal.length < plan.k) for (const h of plan.normal) if (!have.has(h)) out.push({ special: cur.special, normal: [...cur.normal, h] });
+    for (const sp of plan.special) if (sp !== cur.special) out.push({ special: sp, normal: cur.normal });
+    return out;
+  }
+  // The set as a loadout. Cast order: what the loadout already casts keeps its place, a newcomer goes after it
+  // in catalogue order, and the game's two pins (special first, zero-cooldown last) apply as everywhere. An
+  // ability that stays keeps its trigger conditions; one that comes in starts on its own defaults.
+  zoneAbilLoadout(p, set, levelOf) {
+    const cur = (p.loadout?.abilities || []).map(a => a?.hrid), defs = (this.state.zoneCatalog?.abilities || []).map(d => d.abilityHrid);
+    const rank = h => { const i = cur.indexOf(h); return i >= 0 ? i : 100 + defs.indexOf(h); };
+    const list = [set.special, ...[...set.normal].sort((a, b) => rank(a) - rank(b))].filter(Boolean)
+      .map(h => ({ hrid: h, level: Math.max(1, Number(levelOf(h)) || 1) }));
+    const trig = { ...(p.loadout?.abilityTriggers || {}) };
+    for (const h of Object.keys(trig)) if (h.startsWith("/abilities/") && !list.some(a => a.hrid === h)) delete trig[h];
+    return { ...p.loadout, abilities: this.zoneSortAbilities(list), abilityTriggers: trig };
+  }
+  async runZoneAbil() {
+    if (!this.client || this.state.zoneAbilRunning || this.zoneAbilPlan(this.state).block) return;
+    if (this.client?.zoneMarketRefresh) {   // the same freshness rule as Run
+      const m = this.state.zoneMarket, age = m?.timestamp ? Date.now() - Number(m.timestamp) : Infinity;
+      if (age > 59 * 60e3) await this.refreshZoneMarket();
+    }
+    const s = this.state, c = this.zoneAbilSettings(s), plan = this.zoneAbilPlan(s);
+    if (plan.block) return;
+    const hours = Math.min(8760, Math.max(1, Number(c.hours) || 300)), seeds = Math.min(20, Math.max(1, Math.floor(Number(c.seeds)) || 1));
+    const seed0 = Math.floor(Number(s.zoneSeed) || 1) || 1, tasks = s.zoneTasks || {};
+    const byName = new Map((s.zoneParty || []).map((p, i) => [this.zonePartyName(p, i), p]));
+    const pricing = { ...Component.ZONE_PRICE_DEFAULTS, ...s.zonePricing };
+    if (!s.zoneConcOverride) delete pricing.drinkConcentration;
+    const body = { candidates: [{ zone: plan.target.zone, difficultyTier: plan.target.difficultyTier, hours }], hours, pricing, accountBuffs: s.zoneBuffs };
+    const waveRaw = String(s.zoneWaveMs ?? "").trim(), waveMs = Number(waveRaw);
+    if (waveRaw !== "" && Number.isFinite(waveMs)) body.waveTransitionDelayMs = waveMs;
+    const levels = Object.fromEntries([...plan.normal, ...plan.special].map(h => [h, plan.levels.get(h)]));
+    const metric = c.metric === "keys" ? "xp" : c.metric;
+    const head = { zone: plan.target.zone, difficultyTier: plan.target.difficultyTier, name: plan.zone?.name || plan.target.zone,
+      isDungeon: !!plan.zone?.isDungeon, hours, seeds, seed: seed0, player: plan.who.name, party: plan.party, levels,
+      mode: plan.mode, metric, start: Component.abilKey(plan.start), steps: [], round: 0, at: Date.now() };
+    const per = [], at = new Map();
+    let done = 0, total = 0;
+    this.setState({ zoneAbilRunning: true, zoneAbilError: null, zoneAbilHead: head, zoneAbilRows: [], zoneAbilProgress: { done: 0, total: 0 } });
+    this._abilStopped = false;
+    const evalSets = async sets => {
+      const fresh = [];
+      for (const set of sets) { const key = Component.abilKey(set);
+        if (at.has(key)) continue;
+        at.set(key, per.length); per.push({ names: [key], set, runs: new Array(seeds).fill(null), error: null }); fresh.push(per[per.length - 1]); }
+      const jobs = fresh.flatMap(e => Array.from({ length: seeds }, (_, k) => ({ e, k })));
+      total += jobs.length;
+      this.setState({ zoneAbilProgress: { done, total, round: head.round } });
+      let next = 0;
+      const lane = async () => {
+        for (;;) {
+          if (this._abilStopped) return;
+          const j = jobs[next++]; if (!j) return;
+          const players = plan.party.map(n => { const p = byName.get(n);
+            const q = { ...p, record: { ...p.record, taskMonsterHrid: tasks[n] || tasks[Component.compBase(n)] || null } };
+            return n === plan.who.name ? { ...q, loadout: this.zoneAbilLoadout(p, j.e.set, h => levels[h]) } : q; });
+          try {
+            const r = await this.client.zoneRun({ ...body, players, seed: seed0 + j.k });
+            const cand = (r?.candidates || [])[0];
+            if (!cand || cand.ok === false) j.e.error = cand?.error || Component.t("refused");
+            else j.e.runs[j.k] = Component.compSummary(cand);
+          } catch (err) { j.e.error = `${err?.message || err}`.replace(/^\d{3}\s*/, ""); }
+          done++;
+          this.setState({ zoneAbilProgress: { done, total, round: head.round }, zoneAbilRows: Component.compRows(per) });
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(this.zoneLanes(), jobs.length) }, lane));
+    };
+    const score = set => { const e = per[at.get(Component.abilKey(set))], row = e && !e.error && Component.compRows([e])[0];
+      return row && row.n ? row[metric] : null; };
+    const paired = (a, b) => { const ea = per[at.get(Component.abilKey(a))], eb = per[at.get(Component.abilKey(b))];
+      const v = ea && eb ? ea.runs.map((r, k) => r && eb.runs[k] ? r[metric] - eb.runs[k][metric] : null).filter(x => x != null) : [];
+      if (!v.length) return null;
+      const m = v.reduce((x, y) => x + y, 0) / v.length;
+      return { mean: m, se: v.length > 1 ? Math.sqrt(v.reduce((x, y) => x + (y - m) ** 2, 0) / (v.length - 1) / v.length) : null }; };
+    try {
+      if (plan.mode === "all") await evalSets(Component.abilAllSets(plan));
+      else {
+        let cur = plan.start;
+        await evalSets([cur]);
+        for (let round = 1; round <= Component.ABIL_ROUNDS && !this._abilStopped; round++) {
+          head.round = round;
+          const nb = Component.abilNeighbors(cur, plan);
+          await evalSets(nb);
+          if (this._abilStopped) break;
+          let best = cur, bv = score(cur) ?? -Infinity;
+          for (const x of nb) { const v = score(x); if (v != null && v > bv) { best = x; bv = v; } }
+          if (best === cur) break;
+          // Every set ran on the same seeds, so the swap is judged seed by seed: it is taken only when its gain
+          // is more than twice the standard error of those paired differences, not a lucky draw.
+          const d = paired(best, cur);
+          if (d && d.se != null && d.mean <= 2 * d.se) {
+            head.held = { round, to: Component.abilKey(best), gain: d.mean, noise: 2 * d.se, base: score(cur) ?? 0 };
+            break;
+          }
+          head.steps.push({ round, from: Component.abilKey(cur), to: Component.abilKey(best), gain: bv - (score(cur) ?? 0), base: score(cur) ?? 0 });
+          cur = best;
+          this.setState({ zoneAbilHead: { ...head, steps: head.steps.slice() } });
+        }
+      }
+    } catch (e) { this.setState({ zoneAbilError: `${e?.message || e}` }); }
+    this.setState({ zoneAbilRunning: false, zoneAbilProgress: null, zoneAbilRows: Component.compRows(per),
+      zoneAbilHead: { ...head, steps: head.steps.slice(), stopped: !!this._abilStopped, ms: Date.now() - head.at } });
+  }
+  stopZoneAbil() { this._abilStopped = true; }
+  /** Put one set in the searched player's loadout, at the levels it ran with. */
+  zoneAbilApply(key) {
+    const head = this.state.zoneAbilHead; if (!head) return;
+    const i = (this.state.zoneParty || []).findIndex((p, j) => this.zonePartyName(p, j) === head.player);
+    if (i < 0) return;
+    const set = Component.abilParse(key);
+    this.patchPlayer(i, p => { p.loadout = this.zoneAbilLoadout(p, set, h => head.levels?.[h]); });
+  }
+  zoneAbilVals(s, { nf, nice, coin, big }) {
+    const c = this.zoneAbilSettings(s), plan = this.zoneAbilPlan(s), who = plan.who, zones = s.zoneList || [];
+    const defs = s.zoneCatalog?.abilities || [];
+    const party = s.zoneParty || [];
+    const abName = h => { const v = Component.t(h); return v !== h ? v : defs.find(d => d.abilityHrid === h)?.name || nice(h); };
+    const segOn = "background:color-mix(in srgb, var(--color-accent-700) 34%, transparent);color:var(--color-text)";
+    const segOff = "background:transparent;color:var(--color-neutral-300)";
+    const lv = who ? this.zoneAbilLevels(s, who) : { levels: new Map(), auto: new Map(), typed: {} };
+    const slotted = new Set((who?.p?.loadout?.abilities || []).map(a => a?.hrid));
+    const learned = [...lv.levels.values()].filter(v => v > 0).length;
+    const setLevel = (h, raw) => { if (!who) return;
+      const t = { ...(c.levels[who.base] || {}) }, v = String(raw).trim() === "" ? 0 : Math.max(0, Math.min(Number(s.zoneCatalog?.maxAbilityLevel) || 200, Math.round(Number(raw) || 0)));
+      if (v === (lv.auto.get(h) || 0)) delete t[h]; else t[h] = v;
+      this.setZoneAbil({ levels: { ...c.levels, [who.base]: t } }); };
+    // The level table, grouped as the ability picker groups them.
+    const groups = (() => { const g = new Map();
+      for (const d of defs) { const k = d.isSpecial ? "Special" : d.style ? nice(d.style.split("/").pop()) : d.kind ? nice(d.kind) : "Any style";
+        if (!g.has(k)) g.set(k, []);
+        const h = d.abilityHrid, n = lv.levels.get(h) || 0, fit = plan.fits ? plan.fits(d) : true;
+        g.get(k).push({ label: abName(h), level: n ? String(n) : "",
+          style: [!fit && c.fit ? "opacity:0.45" : "", slotted.has(h) ? "color:var(--color-accent-300)" : ""].filter(Boolean).join(";"),
+          inputStyle: Object.prototype.hasOwnProperty.call(lv.typed, h) ? "border-color:var(--color-accent-500)" : "",
+          tip: [abName(h), d.manaCost ? Component.tf("{n} mana", { n: d.manaCost }) : "", d.cooldownSeconds != null ? `${d.cooldownSeconds} s` : "",
+            slotted.has(h) ? Component.t("slotted now") : "", !fit && c.fit ? Component.t("does not fit this character's style") : "",
+            Object.prototype.hasOwnProperty.call(lv.typed, h) ? Component.tf("typed in (export: {n})", { n: lv.auto.get(h) || 0 }) : ""].filter(Boolean).join(" · "),
+          setLevel: e => setLevel(h, e.target.value) }); }
+      return [...g.entries()].map(([label, items]) => ({ label: Component.t(label), items })); })();
+
+    const hours = Number(c.hours) || 300, seeds = Math.max(1, Math.floor(Number(c.seeds)) || 1);
+    const LIM = { ...Component.ZONE_LIMIT_DEFAULTS, ...(s.zoneLimits || {}) };
+    const pace = this.zoneOnly ? this.zonePace() : null;
+    const perCandHour = pace?.secondsPerCandidateHour > 0 ? pace.secondsPerCandidateHour : LIM.secondsPerCandidateHour;
+    const est = n => Component.laneHours(new Array(n * seeds).fill(hours), LIM.concurrency) * perCandHour;
+    const secText = x => x < 90 ? Component.tf("about {n} seconds", { n: Math.max(1, Math.round(x)) })
+      : x < 5400 ? Component.tf("about {n} minutes", { n: Math.round(x / 60) }) : Component.tf("about {n} hours", { n: nf(x / 3600, 1) });
+    const nbCount = plan.block ? 0 : Component.abilNeighbors(plan.start, plan).length;
+    const zoneName = t => { const z = zones.find(x => x.hrid === t?.zone); return t ? `${Component.t(z?.name || t.zone)} · T${t.difficultyTier}` : ""; };
+    const zOpt = d => ({ value: d.hrid, label: Component.t(d.name), iconId: d.iconId || null,
+      glyph: d.isDungeon ? "ph-castle-turret" : d.maxPartySize === 1 ? "ph-skull" : "ph-planet",
+      note: Component.tf("party of {n} max", { n: d.maxPartySize }) });
+
+    // ── the ranking ──
+    const head = s.zoneAbilHead, metric = c.metric === "keys" ? "xp" : c.metric;
+    const val = r => metric === "profit" ? r.profit : metric === "kills" ? r.kills : r.xp;
+    const ok = (s.zoneAbilRows || []).filter(r => !r.error && r.n), bad = (s.zoneAbilRows || []).filter(r => r.error);
+    const ranked = ok.slice().sort((a, b) => val(b) - val(a)), best = ranked.length ? val(ranked[0]) : 0;
+    const hp = head && party.find((p, j) => this.zonePartyName(p, j) === head.player);
+    const nowKey = hp ? Component.abilKey({ special: (hp.loadout?.abilities || []).map(a => a.hrid).find(h => defs.find(d => d.abilityHrid === h)?.isSpecial) || null,
+      normal: (hp.loadout?.abilities || []).map(a => a.hrid).filter(h => !defs.find(d => d.abilityHrid === h)?.isSpecial) }) : null;
+    const nowLevels = hp && (hp.loadout?.abilities || []).every(a => Number(a.level) === Number(head.levels?.[a.hrid]));
+    const startSet = head ? Component.abilParse(head.start) : null, startHave = new Set(startSet ? [startSet.special, ...startSet.normal] : []);
+    const fmt = { xp: big, profit: coin, kills: v => nf(v, 1) };
+    const pm = (r, k) => r.se?.[k] != null ? ` ± ${fmt[k](2 * r.se[k])}` : "";
+    const metricLabel = { xp: Component.t("XP / h"), profit: Component.t("Profit / day"), kills: Component.t("Kills / h") };
+    const setText = key => { const st = Component.abilParse(key); return [st.special, ...st.normal].filter(Boolean).map(h => abName(h)).join(", "); };
+    const rows = [...ranked, ...bad].map((r, i) => {
+      const key = r.names[0], st = Component.abilParse(key);
+      const isCur = key === nowKey && nowLevels;
+      const delta = !r.error && best ? (val(r) - best) / Math.abs(best) : 0;
+      return {
+        rank: r.error ? "—" : String(i + 1),
+        picks: [st.special, ...st.normal].filter(Boolean).map(h => ({ text: `${h === st.special ? "★ " : ""}${abName(h)} ${head?.levels?.[h] ?? ""}`,
+          style: startHave.has(h) ? "" : "color:var(--color-accent-2-200)",
+          tip: startHave.has(h) ? Component.t("in the loadout the search started from") : Component.t("not in the loadout the search started from") })),
+        xp: r.error ? "" : big(r.xp), profit: r.error ? "" : coin(r.profit), kills: r.error ? "" : nf(r.kills, 1), deaths: r.error ? "" : nf(r.deaths, 2),
+        tip: r.error ? r.error : [`${metricLabel.xp} ${big(r.xp)}${pm(r, "xp")}`, `${metricLabel.profit} ${coin(r.profit)}${pm(r, "profit")}`,
+          `${metricLabel.kills} ${nf(r.kills, 1)}${pm(r, "kills")}`, r.n > 1 ? Component.tf("mean of {n} seeds; ± is two standard errors", { n: r.n }) : Component.t("one seed")].join("\n"),
+        delta: r.error ? r.error : i === 0 ? Component.t("best") : `${(delta * 100).toFixed(2)}%`,
+        deltaStyle: r.error ? "color:var(--color-accent-2-300)" : i === 0 ? "color:var(--color-accent-300)" : "color:var(--color-neutral-300)",
+        rowStyle: isCur ? "color:var(--color-accent-300);font-weight:600" : "",
+        current: isCur, applicable: !r.error && !isCur && !!hp && !s.zoneAbilRunning,
+        apply: () => this.zoneAbilApply(key),
+      };
+    });
+    const top2 = ranked.length > 1, k = metric, gap = top2 ? val(ranked[0]) - val(ranked[1]) : 0;
+    const noise = top2 && ranked[0].se?.[k] != null && ranked[1].se?.[k] != null ? 2 * Math.hypot(ranked[0].se[k], ranked[1].se[k]) : null;
+    const prog = s.zoneAbilProgress, pct = s.zoneAbilRunning && prog ? Math.round(100 * prog.done / Math.max(1, prog.total)) : 0;
+    const searchedBy = head ? metricLabel[head.metric] || metricLabel.xp : "";
+
+    return {
+      has: party.some(p => !p?.record?._blank),
+      open: !!c.open, caret: c.open ? "▾" : "▸", toggle: () => this.setZoneAbil({ open: !c.open }),
+      summary: who ? Component.tf("{name} · {n} abilities learned", { name: who.name, n: learned })
+        + (plan.block ? "" : plan.mode === "all" ? Component.tf(" · {n} sets", { n: nf(plan.count) }) : Component.tf(" · {n} sets, searched", { n: nf(plan.count) })) : "",
+      intro: Component.t("Type the level of every ability the character has (0 or empty: not learned) — the export's owned abilities and the loadout fill them in, and a typed level is kept per character. The search then finds which of them fill the slots best. The rest of the seated party stays as it is, and every set runs on the same seeds, so two sets differ by their abilities and not by luck."),
+      player: who?.name || "", playerOpts: party.map((p, i) => ({ p, i })).filter(x => !x.p?.record?._blank)
+        .map(x => ({ value: this.zonePartyName(x.p, x.i), label: this.zonePartyName(x.p, x.i) })),
+      setPlayer: e => this.setZoneAbil({ player: e.target.value }),
+      groups,
+      reset: () => { if (who) { const l = { ...c.levels }; delete l[who.base]; this.setZoneAbil({ levels: l }); } },
+      resetDisabled: !who || !Object.keys(lv.typed).length,
+      fit: !!c.fit, toggleFit: () => this.setZoneAbil({ fit: !c.fit }),
+      fitLabel: Component.tf("Only abilities that fit {style}", { style: Component.t(nice(plan.style || "")) || "the character" }),
+      slots: c.slots == null ? "" : String(c.slots), slotsPlaceholder: String(plan.slotsAuto ?? ""),
+      setSlots: e => this.setZoneAbil({ slots: String(e.target.value).trim() === "" ? null : e.target.value }),
+      slotNote: who && !plan.block ? Component.tf("Intelligence {int}: {n} normal slots and the special slot. {k} of {pool} learned abilities go in.",
+        { int: plan.intel, n: plan.slots, k: plan.k, pool: plan.normal.length }) + (plan.special.length ? "" : Component.t(" No special ability is learned.")) : "",
+      zone: plan.target?.zone || "",
+      zoneGroups: [{ label: "Planets", items: zones.filter(z => !z.isDungeon && (z.maxPartySize > 1 || s.zoneShowSingles)).map(zOpt) },
+        { label: "Dungeons", items: zones.filter(z => z.isDungeon).map(zOpt) }].filter(g => g.items.length),
+      setZone: e => { const h = typeof e === "string" ? e : e.target.value; this.setZoneAbil({ zone: h, tier: h === plan.target?.zone ? c.tier : null }); },
+      tier: String(plan.target?.difficultyTier ?? 0),
+      tierOpts: Array.from({ length: (Number(plan.zone?.maxDifficulty) || 0) + 1 }, (_, t) => ({ value: String(t), label: `T${t}` })),
+      setTier: e => this.setZoneAbil({ zone: plan.target?.zone || null, tier: Number(e.target.value) || 0 }),
+      partyNote: who && plan.party ? (plan.party.length > 1 ? Component.tf("Runs with the seated party: {names}.", { names: plan.party.join(", ") })
+        : plan.party[0] === who.name && !this.zoneActiveNames(s).includes(who.name) ? Component.tf("{name} is not seated, so runs alone.", { name: who.name }) : "") : "",
+      hours: String(c.hours), setHours: e => this.setZoneAbil({ hours: e.target.value }),
+      seeds: String(c.seeds), setSeeds: e => this.setZoneAbil({ seeds: e.target.value }),
+      metrics: ["xp", "profit", "kills"].map(m => ({ label: metricLabel[m], style: m === metric ? segOn : segOff, pick: () => this.setZoneAbil({ metric: m }) })),
+      planNote: plan.block ? "" : plan.mode === "all"
+        ? Component.tf("Every set: {n} × {seeds} seeds = {sims} simulations of {h} h · {t}.", { n: nf(plan.count), seeds, sims: nf(plan.count * seeds), h: nf(hours), t: secText(est(plan.count)) })
+        : Component.tf("{n} sets is too many to run every one (more than {max}), so the search starts from the loadout's own abilities and each round runs every single swap — {nb} sets × {seeds} seeds, {t} — and takes the best, until no swap improves on {metric}. Usually 2–5 rounds.",
+          { n: nf(plan.count), max: Component.ABIL_MAX, nb: nbCount, seeds, t: secText(est(nbCount)), metric: metricLabel[metric] }),
+      runDisabled: !!plan.block || !!s.zoneAbilRunning || !this.client,
+      runLabel: s.zoneAbilRunning ? Component.t("Searching…") : plan.block || (plan.mode === "local" ? Component.t("Search") : plan.count === 1 ? Component.t("Run 1 set") : Component.tf("Run {n} sets", { n: nf(plan.count) })),
+      run: () => this.runZoneAbil(), stop: () => this.stopZoneAbil(), running: !!s.zoneAbilRunning,
+      progressPct: String(pct), progressStyle: `width:${pct}%;height:100%;background:var(--color-accent-2-400);transition:width 0.3s`,
+      progressLabel: prog ? `${prog.round ? Component.tf("round {n} · ", { n: prog.round }) : ""}${prog.done} / ${prog.total}` : "",
+      error: s.zoneAbilError || "", hasError: !!s.zoneAbilError,
+      hasRows: rows.length > 0, rows,
+      headLine: head ? `${head.player} · ${zoneName(head)} · ${nf(head.hours)} h × ${head.seeds === 1 ? Component.t("1 seed") : Component.tf("{n} seeds", { n: head.seeds })}`
+        + (head.mode === "local" ? Component.tf(" · searched by {m}", { m: searchedBy }) : "") + (head.stopped ? Component.t(" · stopped early") : "") : "",
+      steps: (head?.steps || []).map(st => { const a = Component.abilParse(st.from), b = Component.abilParse(st.to);
+        const out = [a.special, ...a.normal].filter(h => h && ![b.special, ...b.normal].includes(h)), inn = [b.special, ...b.normal].filter(h => h && ![a.special, ...a.normal].includes(h));
+        return { text: Component.tf("Round {r}: {out} → {in}, {gain} ({pct}%)", { r: st.round, out: out.map(abName).join(", ") || Component.t("empty slot"), in: inn.map(abName).join(", "),
+          gain: `+${fmt[head.metric] ? fmt[head.metric](st.gain) : nf(st.gain)}`, pct: st.base ? (100 * st.gain / Math.abs(st.base)).toFixed(2) : "—" }) }; }),
+      hasSteps: !!head?.steps?.length,
+      stepsNote: head && head.mode === "local" && !s.zoneAbilRunning && !head.stopped
+        ? Component.tf("Started from {set}.", { set: setText(head.start) || Component.t("no abilities") }) + " "
+          + (head.held ? Component.tf("It stopped at round {r}: the best swap left ({set}) gains {gain}, inside the seed noise (± {noise}) — more seeds or hours would tell whether it is real.",
+              { r: head.held.round, set: setText(head.held.to), gain: fmt[head.metric] ? fmt[head.metric](head.held.gain) : nf(head.held.gain), noise: fmt[head.metric] ? fmt[head.metric](head.held.noise) : nf(head.held.noise) })
+            : Component.t("No single swap beats the set it stopped at."))
+          + Component.t(" A set two or more swaps away can still be better, so a search from another loadout can land elsewhere.") : "",
+      verdict: s.zoneAbilRunning || !top2 ? ""
+        : noise == null ? Component.t("One seed per set: run two or more to see whether the leader's margin is more than luck.")
+        : gap > noise ? Component.tf("The best set leads the next by {gap} ({pct}%), more than the two could differ by chance (± {noise}).", { gap: fmt[k](gap), pct: (100 * gap / Math.abs(val(ranked[1]) || 1)).toFixed(2), noise: fmt[k](noise) })
         : Component.tf("The top two are within chance of each other (lead {gap}, ± {noise}): more seeds or hours would separate them.", { gap: fmt[k](gap), noise: fmt[k](noise) }),
     };
   }
@@ -4513,6 +4978,7 @@ class Component extends DCLogic {
       editor: this.zoneEditorVals(s, set, { nf, nice }),
       cmp: this.zoneCompareVals(s, set, { nf, nice, coin }),
       comp: this.zoneCompVals(s, { nf, nice, coin, big }),
+      abil: this.zoneAbilVals(s, { nf, nice, coin, big }),
       listError: s.zoneListError || "", hasListError: !!s.zoneListError,
       pickZone: pick, setZone: e => set({ zonePick: typeof e === "string" ? e : e.target.value, zoneTier: 0 }),
       // One grouped list for the picker: batches first, then dungeons, then planets — the same order the

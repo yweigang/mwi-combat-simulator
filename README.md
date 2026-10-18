@@ -73,6 +73,23 @@ keys than at the tier below (the monsters have outpaced the higher drop rate: sl
 too strong for every combination are never simulated. **Seat** also queues the zone at the winning tier.
 Dungeons drop chests, not keys, so on a dungeon the box does nothing.
 
+## Best abilities (this fork)
+
+On Setup, under Best combination: find which of a character's abilities fill their slots best. Pick the player and
+give every ability its level (0 or empty: not learned). The export's owned abilities and the loadout fill the table
+in; a level typed here is kept per character and marked, and **Back to export levels** forgets them. By default only
+abilities that fit the character's style are tried (no Fireball on a bow). The normal slots follow Intelligence (one
+at 1, then 20, 50 and 90) plus the special slot, or can be set by hand. Pick the zone, tier, hours and seeds, and
+whether the best is the most XP / h, Profit / day or Kills / h.
+
+The rest of the seated party stays as it is (a player who is not seated runs alone), and every set runs on the same
+seeds. Up to 300 sets, **every** set is run. Past that, the search starts from the loadout's own abilities and each
+round runs every single swap (one normal slot takes another ability, an empty slot is filled, another special goes
+in). It takes the best swap only when it beats the current set by more than twice the standard error of the paired
+per-seed differences, and stops when none does. The ranking lists every set run, with the rounds taken below it.
+**Apply** puts a set in the player's loadout at the levels it ran with: an ability that stays keeps its trigger
+conditions, and one that comes in starts on its defaults.
+
 ## Found something wrong?
 
 Mail Metzli in-game, or open an issue. Numbers that look off are worth reporting with your export and the zone you
