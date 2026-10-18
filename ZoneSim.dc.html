@@ -678,12 +678,15 @@
         <div style="display:flex;flex-direction:column;gap:var(--space-3);min-width:0">
           <div style="display:grid;grid-template-columns:96px minmax(0,1fr);gap:6px 9px;align-items:center;font-size:13px">
             <span class="text-muted" style="font-size:12.5px">Zone</span>
-            <sc-if value="{{ zone.comp.noTarget }}" hint-placeholder-val="{{ false }}"><span class="text-muted" style="font-size:12.5px">Queue a zone above — the search runs on one of the queued rows.</span></sc-if>
-            <sc-if value="{{ zone.comp.hasTarget }}" hint-placeholder-val="{{ true }}">
-              <select class="input" style="min-height:29px;padding:2px 6px;font-size:12.5px" value="{{ zone.comp.target }}" onChange="{{ zone.comp.setTarget }}">
-                <sc-for list="{{ zone.comp.targetOpts }}" as="o" hint-placeholder-count="2"><option value="{{ o.value }}">{{ o.label }}</option></sc-for>
+            <dc-import name="IconPick" value="{{ zone.comp.zone }}" groups="{{ zone.comp.zoneGroups }}" on-pick="{{ zone.comp.setZone }}"
+              placeholder="Pick a zone" height="{{ 29 }}" font-size="{{ 12.5 }}" fallback-glyph="ph-planet" hint-size="100%,29px"></dc-import>
+            <span class="text-muted" style="font-size:12.5px">Tier</span>
+            <sc-if value="{{ zone.comp.tierPick }}" hint-placeholder-val="{{ true }}">
+              <select class="input" style="min-height:29px;padding:2px 6px;font-size:12.5px;width:90px" value="{{ zone.comp.tier }}" onChange="{{ zone.comp.setTier }}">
+                <sc-for list="{{ zone.comp.tierOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.value }}">{{ o.label }}</option></sc-for>
               </select>
             </sc-if>
+            <sc-if value="{{ zone.comp.tierAuto }}" hint-placeholder-val="{{ false }}"><span class="text-muted" style="font-size:12.5px">{{ zone.comp.tierAuto }}</span></sc-if>
             <span class="text-muted" style="font-size:12.5px">Keys</span>
             <label style="display:flex;gap:7px;align-items:center;font-size:12.5px;cursor:pointer;min-width:0" title="{{ zone.comp.keysTip }}">
               <input type="checkbox" style="cursor:pointer;margin:0;flex:none" checked="{{ zone.comp.keys }}" onChange="{{ zone.comp.toggleKeys }}">
@@ -2395,7 +2398,7 @@ class Component extends DCLogic {
   // grouped into characters by that name (or by hand), and the search runs every way of picking one loadout per
   // character through one queued zone, every combination on the same seeds, so two combinations differ by their
   // loadouts and not by their luck. A character marked Optional may also sit out, which compares party sizes too.
-  static COMP_DEFAULTS = { open: false, metric: "xp", hours: 1000, seeds: 2, target: 0, char: {}, role: {}, skip: {}, label: {}, keys: false };
+  static COMP_DEFAULTS = { open: false, metric: "xp", hours: 1000, seeds: 2, zone: null, tier: null, char: {}, role: {}, skip: {}, label: {}, keys: false };
   // Each combination is a full simulation per seed, so the plan is refused past this many combinations.
   static COMP_MAX = 300;
   static compBase(name) { return String(name || "").replace(/\s\(\d+\)$/, ""); }
@@ -2414,9 +2417,15 @@ class Component extends DCLogic {
     return [...groups.values()].map(g => ({ ...g, role: c.role[g.key] || (g.entries.some(e => e.seated) ? "in" : "out"),
       loadouts: g.entries.filter(e => e.on) }));
   }
+  // The search's own zone and tier, picked in the panel from every zone. Until one is picked it starts from the
+  // first queued row, or else the first full-party planet.
   zoneCompTarget(s) {
-    const cands = s.zoneCands || [], c = this.zoneCompSettings(s);
-    return cands.length ? cands[Math.min(Math.max(0, Math.floor(Number(c.target)) || 0), cands.length - 1)] : null;
+    const c = this.zoneCompSettings(s), zones = s.zoneList || [], q = (s.zoneCands || [])[0];
+    const z = zones.find(x => x.hrid === c.zone) || zones.find(x => x.hrid === q?.zone)
+      || zones.find(x => !x.isDungeon && x.maxPartySize > 1) || zones[0];
+    if (!z) return null;
+    const t = c.zone === z.hrid && c.tier != null ? c.tier : q?.zone === z.hrid ? q.difficultyTier : 0;
+    return { zone: z.hrid, difficultyTier: Math.min(Number(z.maxDifficulty) || 0, Math.max(0, Math.floor(Number(t)) || 0)) };
   }
   /** Every party the search would run: one loadout per character in it, none for an Optional one sitting out. */
   zoneCompPlan(s) {
@@ -2546,10 +2555,11 @@ class Component extends DCLogic {
       const next = names.filter(n => have.has(n));
       if (!next.length) return null;
       const sel = (s.zoneParty || []).findIndex((p, i) => this.zonePartyName(p, i) === next[0]);
-      // A Keys result also moves the searched row to the tier it won at.
+      // The zone and tier it won at join the queue, so the next Run sims it there.
       let cands = s.zoneCands || [];
-      const ti = Math.min(Math.max(0, Math.floor(Number(this.zoneCompSettings(s).target)) || 0), cands.length - 1);
-      if (tier != null && cands[ti]) cands = cands.map((t, i) => i === ti ? { ...t, difficultyTier: tier } : t);
+      const won = s.zoneCompHead?.zone, t = tier != null ? tier : s.zoneCompHead?.difficultyTier;
+      if (won && t != null && !cands.some(q => q.zone === won && q.difficultyTier === t))
+        cands = [...cands, { zone: won, difficultyTier: t, hours: Math.min(8760, Math.max(1 / 60, Number(s.zoneHours) || 1000)) }];
       return { zoneActive: next, zoneCands: this.zoneFitCands(cands, next.length, s.zoneList), zoneSel: sel < 0 ? s.zoneSel : sel,
         zoneStale: !!s.zoneResult, zoneDerived: null }; });
   }
@@ -2603,7 +2613,7 @@ class Component extends DCLogic {
     const estSec = Component.laneHours(new Array(sims).fill(hours), LIM.concurrency) * perCandHour;
     const secText = x => x < 90 ? Component.tf("about {n} seconds", { n: Math.max(1, Math.round(x)) })
       : x < 5400 ? Component.tf("about {n} minutes", { n: Math.round(x / 60) }) : Component.tf("about {n} hours", { n: nf(x / 3600, 1) });
-    const block = !cands.length ? Component.t("Queue a zone above first")
+    const block = !plan.target ? Component.t("Pick a zone")
       : !plan.groups.length ? Component.t("Put a character in the party")
       : plan.tooMany ? Component.tf("Too many combinations (more than {max})", { max: Component.COMP_MAX })
       : !plan.combos.length ? Component.tf("No combination fits a party of {cap}", { cap: plan.cap })
@@ -2613,6 +2623,9 @@ class Component extends DCLogic {
     const zoneName = t => { const z = zones.find(x => x.hrid === t?.zone);
       return t ? `${Component.t(z?.name || t.zone)} · ${t.difficultyTier == null ? span(t.tiers) : `T${t.difficultyTier}`}` : ""; };
     const keysDungeon = !!c.keys && !!plan.zone?.isDungeon;
+    const zOpt = d => ({ value: d.hrid, label: Component.t(d.name), iconId: d.iconId || null,
+      glyph: d.isDungeon ? "ph-castle-turret" : d.maxPartySize === 1 ? "ph-skull" : "ph-planet",
+      note: Component.tf("party of {n} max", { n: d.maxPartySize }) });
 
     // ── the ranking ──
     const head = s.zoneCompHead, metric = c.metric;
@@ -2621,7 +2634,6 @@ class Component extends DCLogic {
     const ranked = ok.slice().sort((a, b) => val(b) - val(a)), best = ranked.length ? val(ranked[0]) : 0;
     const chars = head?.chars || [];
     const current = new Set(this.zoneActiveNames(s));
-    const tgt = this.zoneCompTarget(s);
     const fmt = { xp: big, profit: coin, kills: v => nf(v, 1), keys: v => nf(v, 2) };
     const pm = (r, k) => r.se?.[k] != null ? ` ± ${fmt[k](2 * r.se[k])}` : "";
     const metricLabel = { xp: Component.t("XP / h"), profit: Component.t("Profit / day"), kills: Component.t("Kills / h"), keys: Component.t("Keys / h") };
@@ -2629,7 +2641,7 @@ class Component extends DCLogic {
     const pickOf = (r, key) => r.names.find(n => (c.char[n] || Component.compBase(n)) === key) || null;
     const rows = [...ranked, ...bad].map((r, i) => {
       const isCur = r.names.length === current.size && r.names.every(n => current.has(n))
-        && (r.tier == null || !head?.keys || (tgt?.zone === head.zone && tgt?.difficultyTier === r.tier));
+        && (r.tier == null || cands.some(q => q.zone === head?.zone && q.difficultyTier === r.tier));
       const delta = !r.error && best ? (val(r) - best) / Math.abs(best) : 0;
       return {
         rank: r.error ? "—" : String(i + 1),
@@ -2647,7 +2659,7 @@ class Component extends DCLogic {
         deltaStyle: r.error ? "color:var(--color-accent-2-300)" : i === 0 ? "color:var(--color-accent-300)" : "color:var(--color-neutral-300)",
         rowStyle: isCur ? "color:var(--color-accent-300);font-weight:600" : "",
         current: isCur, seatable: !r.error && !isCur,
-        seat: () => this.zoneCompSeat(r.names, head?.keys ? r.tier : null),
+        seat: () => this.zoneCompSeat(r.names, r.tier ?? null),
       };
     });
     const top2 = ranked.length > 1;
@@ -2692,14 +2704,19 @@ class Component extends DCLogic {
       append: () => this.zoneCompAppend(), appendDisabled: !!s.zoneCompAppending || !String(s.zoneCompText || "").trim(),
       appendLabel: s.zoneCompAppending ? Component.t("Adding…") : Component.t("Add to party"),
       appendNote: s.zoneCompAppendNote || "", appendError: s.zoneCompAppendError || "", hasAppendError: !!s.zoneCompAppendError,
-      noTarget: !cands.length, hasTarget: cands.length > 0,
-      target: String(Math.min(Math.max(0, Math.floor(Number(c.target)) || 0), Math.max(0, cands.length - 1))),
-      targetOpts: cands.map((t, i) => ({ value: String(i), label: zoneName(t) })),
-      setTarget: e => this.setZoneComp({ target: Number(e.target.value) || 0 }),
-      capNote: keysDungeon ? Component.t("Dungeons drop chests, not keys — key fragments come from planets at T1 and up, so Keys runs this row at its own tier.")
+      // Every zone, not only the queued ones; a combination that does not fit one is skipped, so none is hidden.
+      zone: plan.target?.zone || "",
+      zoneGroups: [{ label: "Planets", items: zones.filter(z => !z.isDungeon && (z.maxPartySize > 1 || s.zoneShowSingles)).map(zOpt) },
+        { label: "Dungeons", items: zones.filter(z => z.isDungeon).map(zOpt) }].filter(g => g.items.length),
+      setZone: e => { const h = typeof e === "string" ? e : e.target.value; this.setZoneComp({ zone: h, tier: h === plan.target?.zone ? c.tier : null }); },
+      tierPick: !plan.tiers, tierAuto: plan.tiers ? Component.tf("{span}, searched for keys", { span: span(plan.tiers) }) : "",
+      tier: String(plan.target?.difficultyTier ?? 0),
+      tierOpts: Array.from({ length: (Number(plan.zone?.maxDifficulty) || 0) + 1 }, (_, t) => ({ value: String(t), label: `T${t}` })),
+      setTier: e => this.setZoneComp({ zone: plan.target?.zone || null, tier: Number(e.target.value) || 0 }),
+      capNote: keysDungeon ? Component.t("Dungeons drop chests, not keys — key fragments come from planets at T1 and up, so Keys runs the dungeon at the tier picked.")
         : plan.target ? Component.tf("{zone} seats {cap}.", { zone: plan.tiers ? zoneName({ zone: plan.target.zone, tiers: plan.tiers }) : zoneName(plan.target), cap: plan.cap }) : "",
       keys: !!c.keys, toggleKeys: () => this.setZoneComp({ keys: !c.keys, metric: !c.keys ? "keys" : c.metric === "keys" ? "xp" : c.metric }),
-      keysTip: Component.t("Ignore the row's tier and try every tier that drops key fragments (T1 and up). Each combination climbs one tier at a time and stops at the first tier where it earns fewer keys than at the one below, so tiers that are too strong are not run."),
+      keysTip: Component.t("Ignore the tier and try every tier that drops key fragments (T1 and up). Each combination climbs one tier at a time and stops at the first tier where it earns fewer keys than at the one below, so tiers that are too strong are not run."),
       hours: String(c.hours), setHours: e => this.setZoneComp({ hours: e.target.value }),
       seeds: String(c.seeds), setSeeds: e => this.setZoneComp({ seeds: e.target.value }),
       planNote: block ? "" : plan.tiers
