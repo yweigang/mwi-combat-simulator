@@ -62,8 +62,16 @@ loadouts** box, which appends to the party instead of replacing it. Players are 
 dropdown per loadout regroups one, for example a player made with Add player. Each loadout can be given a name
 ("Ranged", "Nature"), which the ranking and the party card show. Mark each character *In the party*,
 *Optional* (also tried sitting out) or *Left out*, pick a queued zone, hours and seeds, and Run. Every combination
-that fits the zone's party size runs on the same seeds. They are ranked by XP / h, Profit / day or Kills / h, with
-two standard errors, and **Seat** puts a combination in the party for a full Run.
+that fits the zone's party size runs on the same seeds. They are ranked by XP / h, Profit / day, Kills / h or Keys / h
+(key fragments the whole party earns), with two standard errors, and **Seat** puts a combination in the party for a
+full Run.
+
+**Keys.** Tick *Find the tier that earns the most keys* to search the tiers as well: the queued row's tier is ignored
+and every combination is ranked at every tier where it is worth running. T0 is never run, since no key fragment drops
+there. The search climbs from T1 one tier at a time, and a combination stops at the first tier where it earns fewer
+keys than at the tier below (the monsters have outpaced the higher drop rate: slower kills, deaths, wipes), so tiers
+too strong for every combination are never simulated. **Seat** also moves the queued row to the winning tier.
+Dungeons drop chests, not keys, so on a dungeon the box does nothing.
 
 ## Found something wrong?
 

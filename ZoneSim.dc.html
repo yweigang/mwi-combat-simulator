@@ -684,6 +684,11 @@
                 <sc-for list="{{ zone.comp.targetOpts }}" as="o" hint-placeholder-count="2"><option value="{{ o.value }}">{{ o.label }}</option></sc-for>
               </select>
             </sc-if>
+            <span class="text-muted" style="font-size:12.5px">Keys</span>
+            <label style="display:flex;gap:7px;align-items:center;font-size:12.5px;cursor:pointer;min-width:0" title="{{ zone.comp.keysTip }}">
+              <input type="checkbox" style="cursor:pointer;margin:0;flex:none" checked="{{ zone.comp.keys }}" onChange="{{ zone.comp.toggleKeys }}">
+              <span style="min-width:0;text-wrap:pretty">Find the tier that earns the most keys</span>
+            </label>
             <span class="text-muted" style="font-size:12.5px">Hours per seed</span>
             <input class="input" type="number" min="1" max="8760" step="1" style="min-height:29px;padding:2px 6px;font-size:12.5px;width:90px;font-variant-numeric:tabular-nums" value="{{ zone.comp.hours }}" onInput="{{ zone.comp.setHours }}">
             <span class="text-muted" style="font-size:12.5px">Seeds</span>
@@ -728,6 +733,7 @@
               <span class="text-muted" style="font-size:11.5px;text-align:right">XP / h</span>
               <span class="text-muted" style="font-size:11.5px;text-align:right">Profit / day</span>
               <span class="text-muted" style="font-size:11.5px;text-align:right">Kills / h</span>
+              <span class="text-muted" style="font-size:11.5px;text-align:right" title="Key fragments the whole party earns per hour">Keys / h</span>
               <span class="text-muted" style="font-size:11.5px;text-align:right">{{ zone.comp.rateLabel }}</span>
               <span class="text-muted" style="font-size:11.5px;text-align:right">Deaths / h</span>
               <span class="text-muted" style="font-size:11.5px;text-align:right">vs best</span>
@@ -739,6 +745,7 @@
                   <span style="text-align:right;font-variant-numeric:tabular-nums">{{ r.xp }}</span>
                   <span style="text-align:right;font-variant-numeric:tabular-nums">{{ r.profit }}</span>
                   <span style="text-align:right;font-variant-numeric:tabular-nums">{{ r.kills }}</span>
+                  <span style="text-align:right;font-variant-numeric:tabular-nums">{{ r.keys }}</span>
                   <span style="text-align:right;font-variant-numeric:tabular-nums">{{ r.rate }}</span>
                   <span style="text-align:right;font-variant-numeric:tabular-nums">{{ r.deaths }}</span>
                   <span style="text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;{{ r.deltaStyle }}">{{ r.delta }}</span>
@@ -751,6 +758,7 @@
             </div>
           </div>
           <sc-if value="{{ zone.comp.verdict }}" hint-placeholder-val="{{ false }}"><div style="font-size:12.5px;text-wrap:pretty">{{ zone.comp.verdict }}</div></sc-if>
+          <sc-if value="{{ zone.comp.dropNote }}" hint-placeholder-val="{{ false }}"><div class="text-muted" style="font-size:12.5px;text-wrap:pretty">{{ zone.comp.dropNote }}</div></sc-if>
         </div>
       </sc-if>
     </sc-if>
@@ -2387,7 +2395,7 @@ class Component extends DCLogic {
   // grouped into characters by that name (or by hand), and the search runs every way of picking one loadout per
   // character through one queued zone, every combination on the same seeds, so two combinations differ by their
   // loadouts and not by their luck. A character marked Optional may also sit out, which compares party sizes too.
-  static COMP_DEFAULTS = { open: false, metric: "xp", hours: 1000, seeds: 2, target: 0, char: {}, role: {}, skip: {}, label: {} };
+  static COMP_DEFAULTS = { open: false, metric: "xp", hours: 1000, seeds: 2, target: 0, char: {}, role: {}, skip: {}, label: {}, keys: false };
   // Each combination is a full simulation per seed, so the plan is refused past this many combinations.
   static COMP_MAX = 300;
   static compBase(name) { return String(name || "").replace(/\s\(\d+\)$/, ""); }
@@ -2415,14 +2423,18 @@ class Component extends DCLogic {
     const groups = this.zoneCompGroups(s).filter(g => g.role !== "out" && g.loadouts.length);
     const target = this.zoneCompTarget(s), zone = target && (s.zoneList || []).find(z => z.hrid === target.zone);
     const cap = Math.min(Component.ZONE_MAX_PARTY, zone?.maxPartySize || Component.ZONE_MAX_PARTY);
+    // Keys: the queued row's tier is ignored and every tier that can drop a key fragment is tried instead. Every
+    // fragment's drop rate is negative at T0 and climbs per tier, so T0 never drops one; dungeons drop chests.
+    const keys = !!this.zoneCompSettings(s).keys && !!zone && !zone.isDungeon;
+    const tiers = keys ? Array.from({ length: Math.max(0, Number(zone.maxDifficulty) || 0) }, (_, i) => i + 1) : null;
     const opts = groups.map(g => [...g.loadouts.map(e => e.name), ...(g.role === "maybe" ? [null] : [])]);
     const raw = opts.reduce((n, o) => n * o.length, groups.length ? 1 : 0);
     // Counted before it is built: ten characters with four loadouts each is a million parties.
-    if (raw > Component.COMP_MAX * 20) return { groups, target, zone, cap, combos: [], raw, tooMany: true };
+    if (raw > Component.COMP_MAX * 20) return { groups, target, zone, cap, tiers, combos: [], raw, tooMany: true };
     let combos = [[]];
     for (const o of opts) combos = combos.flatMap(c => o.map(n => [...c, n]));
     combos = combos.map(c => c.filter(Boolean)).filter(c => c.length >= 1 && c.length <= cap);
-    return { groups, target, zone, cap, combos, raw, tooMany: combos.length > Component.COMP_MAX };
+    return { groups, target, zone, cap, tiers, combos, raw, tooMany: combos.length > Component.COMP_MAX };
   }
   /** One run's figures, read the way the Results table reads a row. */
   static compSummary(c) {
@@ -2430,21 +2442,27 @@ class Component extends DCLogic {
     const same = ps.length > 0 && ps.every(p => p.profitPerHour === ps[0].profitPerHour);
     const income = same ? ps[0].incomePerHour || 0 : sum(p => p.incomePerHour);
     const expenses = same ? ps[0].expensesPerHour || 0 : sum(p => p.expensesPerHour);
+    // Keys: every key fragment the party earns, each player's own drops added up, and which fragments they are.
+    const keysBy = {};
+    for (const p of ps) for (const it of p.loot?.income?.items || [])
+      if (/_key(_fragment)?$/.test(it.itemHrid || "")) keysBy[it.itemHrid] = (keysBy[it.itemHrid] || 0) + (Number(it.perHour) || 0);
     return { xp: sum(p => p.experiencePerHour?.total), profit: (income - expenses) * 24, kills: Number(c.killsPerHour) || 0,
       deaths: sum(p => p.deathsPerHour), rate: c.isDungeon ? Number(c.dungeonsCompletedPerHour) || 0 : Number(c.encountersPerHour) || 0,
+      keys: Object.values(keysBy).reduce((a, b) => a + b, 0), keysBy,
       each: Object.fromEntries(ps.map(p => [p.hrid, p.experiencePerHour?.total || 0])) };
   }
   /** Seeds averaged per combination, with the standard error of each mean once there are two seeds. */
   static compRows(per) {
     return per.map(x => {
       const runs = x.runs.filter(Boolean);
-      if (!runs.length) return x.error ? { names: x.names, n: 0, error: x.error } : null;
+      if (!runs.length) return x.error ? { names: x.names, tier: x.tier, n: 0, error: x.error } : null;
       const stat = k => { const v = runs.map(r => r[k]), m = v.reduce((a, b) => a + b, 0) / v.length;
         const se = v.length > 1 ? Math.sqrt(v.reduce((a, b) => a + (b - m) ** 2, 0) / (v.length - 1) / v.length) : null;
         return [m, se]; };
-      const out = { names: x.names, n: runs.length, error: null, se: {}, each: {} };
-      for (const k of ["xp", "profit", "kills", "deaths", "rate"]) [out[k], out.se[k]] = stat(k);
+      const out = { names: x.names, tier: x.tier, n: runs.length, error: null, se: {}, each: {}, keysBy: {} };
+      for (const k of ["xp", "profit", "kills", "deaths", "rate", "keys"]) [out[k], out.se[k]] = stat(k);
       for (const n of x.names) out.each[n] = runs.reduce((a, r) => a + (r.each[n] || 0), 0) / runs.length;
+      for (const r of runs) for (const [h, v] of Object.entries(r.keysBy || {})) out.keysBy[h] = (out.keysBy[h] || 0) + v / runs.length;
       return out;
     }).filter(Boolean);
   }
@@ -2466,45 +2484,73 @@ class Component extends DCLogic {
     const body = { candidates: [{ zone: plan.target.zone, difficultyTier: plan.target.difficultyTier, hours }], hours, pricing, accountBuffs: s.zoneBuffs };
     const waveRaw = String(s.zoneWaveMs ?? "").trim(), waveMs = Number(waveRaw);
     if (waveRaw !== "" && Number.isFinite(waveMs)) body.waveTransitionDelayMs = waveMs;
-    const jobs = plan.combos.flatMap((names, ci) => Array.from({ length: seeds }, (_, k) => ({ ci, k })));
-    const per = plan.combos.map(names => ({ names, runs: new Array(seeds).fill(null), error: null }));
-    const head = { zone: plan.target.zone, difficultyTier: plan.target.difficultyTier, name: plan.zone?.name || plan.target.zone,
-      isDungeon: !!plan.zone?.isDungeon, hours, seeds, seed: seed0, chars: plan.groups.map(g => g.key), at: Date.now() };
+    // One entry per combination and tier: without Keys there is one tier, the queued row's.
+    const tiers = plan.tiers || [plan.target.difficultyTier];
+    const per = [], at = new Map();
+    const entry = (ci, tier) => { const key = `${ci}|${tier}`;
+      if (!at.has(key)) { at.set(key, per.length); per.push({ names: plan.combos[ci], tier, runs: new Array(seeds).fill(null), error: null }); }
+      return per[at.get(key)]; };
+    const head = { zone: plan.target.zone, difficultyTier: plan.tiers ? null : plan.target.difficultyTier, name: plan.zone?.name || plan.target.zone,
+      isDungeon: !!plan.zone?.isDungeon, hours, seeds, seed: seed0, chars: plan.groups.map(g => g.key), at: Date.now(),
+      keys: !!plan.tiers, tiers: plan.tiers ? [] : null, dropped: {} };
+    let alive = plan.combos.map((_, ci) => ci), done = 0, total = alive.length * seeds * tiers.length;
     this.setState({ zoneComp: { ...c, role }, zoneCompRunning: true, zoneCompError: null, zoneCompHead: head, zoneCompRows: [],
-      zoneCompProgress: { done: 0, total: jobs.length }, zoneCompStart: Date.now() });
+      zoneCompProgress: { done: 0, total }, zoneCompStart: Date.now() });
     this._compStopped = false;
-    let next = 0, done = 0;
-    // As many requests in flight as the pool has lanes: a request is one party, so the parties are the parallelism.
-    const lane = async () => {
-      for (;;) {
-        if (this._compStopped) return;
-        const j = jobs[next++]; if (!j) return;
-        const names = plan.combos[j.ci];
-        const players = names.map(n => { const p = byName.get(n);
-          return { ...p, record: { ...p.record, taskMonsterHrid: tasks[n] || tasks[Component.compBase(n)] || null } }; });
-        try {
-          const r = await this.client.zoneRun({ ...body, players, seed: seed0 + j.k });
-          const cand = (r?.candidates || [])[0];
-          if (!cand || cand.ok === false) per[j.ci].error = cand?.error || Component.t("refused");
-          else per[j.ci].runs[j.k] = Component.compSummary(cand);
-        } catch (e) { per[j.ci].error = `${e?.message || e}`.replace(/^\d{3}\s*/, ""); }
-        done++;
-        this.setState({ zoneCompProgress: { done, total: jobs.length }, zoneCompRows: Component.compRows(per) });
+    // Keys climbs the tiers one at a time. A combination goes on to the next tier only while it earns more keys
+    // than at the tier below: the drop rate rises every tier but so do the monsters, and once they outpace it
+    // (slower kills, deaths, a wipe) every tier above is harder still. A tier nobody climbs to is never run.
+    try {
+      for (const [ti, tier] of tiers.entries()) {
+        if (this._compStopped || !alive.length) break;
+        if (head.tiers) head.tiers.push(tier);
+        const tb = { ...body, candidates: [{ ...body.candidates[0], difficultyTier: tier }] };
+        const jobs = alive.flatMap(ci => Array.from({ length: seeds }, (_, k) => ({ ci, k })));
+        let next = 0;
+        // As many requests in flight as the pool has lanes: a request is one party, so the parties are the parallelism.
+        const lane = async () => {
+          for (;;) {
+            if (this._compStopped) return;
+            const j = jobs[next++]; if (!j) return;
+            const e = entry(j.ci, tier);
+            const players = e.names.map(n => { const p = byName.get(n);
+              return { ...p, record: { ...p.record, taskMonsterHrid: tasks[n] || tasks[Component.compBase(n)] || null } }; });
+            try {
+              const r = await this.client.zoneRun({ ...tb, players, seed: seed0 + j.k });
+              const cand = (r?.candidates || [])[0];
+              if (!cand || cand.ok === false) e.error = cand?.error || Component.t("refused");
+              else e.runs[j.k] = Component.compSummary(cand);
+            } catch (err) { e.error = `${err?.message || err}`.replace(/^\d{3}\s*/, ""); }
+            done++;
+            this.setState({ zoneCompProgress: { done, total }, zoneCompRows: Component.compRows(per) });
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(this.zoneLanes(), jobs.length) }, lane));
+        if (!plan.tiers || this._compStopped) continue;
+        const mean = e => { const v = e ? e.runs.filter(Boolean) : []; return v.length ? v.reduce((a, r) => a + r.keys, 0) / v.length : 0; };
+        const before = alive.length;
+        alive = alive.filter(ci => { const e = entry(ci, tier), now = mean(e), below = ti ? mean(per[at.get(`${ci}|${tiers[ti - 1]}`)]) : 0;
+          return !e.error && now > 0 && now >= below; });
+        if (ti + 1 < tiers.length) head.dropped[tiers[ti + 1]] = before - alive.length;
+        total -= (before - alive.length) * seeds * (tiers.length - ti - 1);
+        this.setState({ zoneCompProgress: { done, total } });
       }
-    };
-    try { await Promise.all(Array.from({ length: Math.min(this.zoneLanes(), jobs.length) }, lane)); }
-    catch (e) { this.setState({ zoneCompError: `${e?.message || e}` }); }
+    } catch (e) { this.setState({ zoneCompError: `${e?.message || e}` }); }
     this.setState({ zoneCompRunning: false, zoneCompProgress: null, zoneCompRows: Component.compRows(per),
       zoneCompHead: { ...head, stopped: !!this._compStopped, ms: Date.now() - head.at } });
   }
   stopZoneComp() { this._compStopped = true; }
   /** Seat one combination: the party on Setup becomes exactly these loadouts, ready for a full Run. */
-  zoneCompSeat(names) {
+  zoneCompSeat(names, tier = null) {
     this.setState(s => { const have = new Set((s.zoneParty || []).map((p, i) => this.zonePartyName(p, i)));
       const next = names.filter(n => have.has(n));
       if (!next.length) return null;
       const sel = (s.zoneParty || []).findIndex((p, i) => this.zonePartyName(p, i) === next[0]);
-      return { zoneActive: next, zoneCands: this.zoneFitCands(s.zoneCands, next.length, s.zoneList), zoneSel: sel < 0 ? s.zoneSel : sel,
+      // A Keys result also moves the searched row to the tier it won at.
+      let cands = s.zoneCands || [];
+      const ti = Math.min(Math.max(0, Math.floor(Number(this.zoneCompSettings(s).target)) || 0), cands.length - 1);
+      if (tier != null && cands[ti]) cands = cands.map((t, i) => i === ti ? { ...t, difficultyTier: tier } : t);
+      return { zoneActive: next, zoneCands: this.zoneFitCands(cands, next.length, s.zoneList), zoneSel: sel < 0 ? s.zoneSel : sel,
         zoneStale: !!s.zoneResult, zoneDerived: null }; });
   }
   // Appends, where the import box above replaces: the party, its edits and its seats stay as they are, and a name
@@ -2553,51 +2599,71 @@ class Component extends DCLogic {
     const LIM = { ...Component.ZONE_LIMIT_DEFAULTS, ...(s.zoneLimits || {}) };
     const pace = this.zoneOnly ? this.zonePace() : null;
     const perCandHour = pace?.secondsPerCandidateHour > 0 ? pace.secondsPerCandidateHour : LIM.secondsPerCandidateHour;
-    const sims = plan.combos.length * seeds;
+    const nTiers = plan.tiers ? plan.tiers.length : 1, sims = plan.combos.length * seeds * nTiers;
     const estSec = Component.laneHours(new Array(sims).fill(hours), LIM.concurrency) * perCandHour;
     const secText = x => x < 90 ? Component.tf("about {n} seconds", { n: Math.max(1, Math.round(x)) })
       : x < 5400 ? Component.tf("about {n} minutes", { n: Math.round(x / 60) }) : Component.tf("about {n} hours", { n: nf(x / 3600, 1) });
     const block = !cands.length ? Component.t("Queue a zone above first")
       : !plan.groups.length ? Component.t("Put a character in the party")
       : plan.tooMany ? Component.tf("Too many combinations (more than {max})", { max: Component.COMP_MAX })
-      : !plan.combos.length ? Component.tf("No combination fits a party of {cap}", { cap: plan.cap }) : "";
-    const zoneName = t => { const z = zones.find(x => x.hrid === t?.zone); return t ? `${Component.t(z?.name || t.zone)} · T${t.difficultyTier}` : ""; };
+      : !plan.combos.length ? Component.tf("No combination fits a party of {cap}", { cap: plan.cap })
+      : plan.tiers && !plan.tiers.length ? Component.t("This zone has no tier that drops keys") : "";
+    // A Keys search has no one tier: it is named by the span it may climb.
+    const span = ts => ts?.length ? ts.length > 1 ? `T${ts[0]}–T${ts[ts.length - 1]}` : `T${ts[0]}` : "";
+    const zoneName = t => { const z = zones.find(x => x.hrid === t?.zone);
+      return t ? `${Component.t(z?.name || t.zone)} · ${t.difficultyTier == null ? span(t.tiers) : `T${t.difficultyTier}`}` : ""; };
+    const keysDungeon = !!c.keys && !!plan.zone?.isDungeon;
 
     // ── the ranking ──
     const head = s.zoneCompHead, metric = c.metric;
-    const val = r => metric === "profit" ? r.profit : metric === "kills" ? r.kills : r.xp;
+    const val = r => metric === "profit" ? r.profit : metric === "kills" ? r.kills : metric === "keys" ? r.keys || 0 : r.xp;
     const ok = (s.zoneCompRows || []).filter(r => !r.error), bad = (s.zoneCompRows || []).filter(r => r.error);
     const ranked = ok.slice().sort((a, b) => val(b) - val(a)), best = ranked.length ? val(ranked[0]) : 0;
     const chars = head?.chars || [];
     const current = new Set(this.zoneActiveNames(s));
-    const fmt = { xp: big, profit: coin, kills: v => nf(v, 1) };
+    const tgt = this.zoneCompTarget(s);
+    const fmt = { xp: big, profit: coin, kills: v => nf(v, 1), keys: v => nf(v, 2) };
     const pm = (r, k) => r.se?.[k] != null ? ` ± ${fmt[k](2 * r.se[k])}` : "";
-    const metricLabel = { xp: Component.t("XP / h"), profit: Component.t("Profit / day"), kills: Component.t("Kills / h") };
+    const metricLabel = { xp: Component.t("XP / h"), profit: Component.t("Profit / day"), kills: Component.t("Kills / h"), keys: Component.t("Keys / h") };
     const rateLabel = head?.isDungeon ? Component.t("Clears / h") : Component.t("Enc / h");
     const pickOf = (r, key) => r.names.find(n => (c.char[n] || Component.compBase(n)) === key) || null;
     const rows = [...ranked, ...bad].map((r, i) => {
-      const isCur = r.names.length === current.size && r.names.every(n => current.has(n));
+      const isCur = r.names.length === current.size && r.names.every(n => current.has(n))
+        && (r.tier == null || !head?.keys || (tgt?.zone === head.zone && tgt?.difficultyTier === r.tier));
       const delta = !r.error && best ? (val(r) - best) / Math.abs(best) : 0;
       return {
         rank: r.error ? "—" : String(i + 1),
         picks: chars.map(k => { const n = pickOf(r, k), p = party.find((q, j) => this.zonePartyName(q, j) === n);
           return { text: n ? c.label[n] || n : Component.t("sits out"), style: n ? "" : "color:var(--color-neutral-400);font-style:italic",
-            tip: n ? [c.label[n] ? n : "", weapon(p), statLine(p), r.each?.[n] != null ? Component.tf("{n} XP / h", { n: big(r.each[n]) }) : ""].filter(Boolean).join(" · ") : "" }; }),
+            tip: n ? [c.label[n] ? n : "", weapon(p), statLine(p), r.each?.[n] != null ? Component.tf("{n} XP / h", { n: big(r.each[n]) }) : ""].filter(Boolean).join(" · ") : "" }; })
+          .concat(head?.keys ? [{ text: `T${r.tier}`, style: "font-variant-numeric:tabular-nums", tip: "" }] : []),
         xp: r.error ? "" : big(r.xp), profit: r.error ? "" : coin(r.profit), kills: r.error ? "" : nf(r.kills, 1),
+        keys: r.error ? "" : nf(r.keys || 0, 2),
         rate: r.error ? "" : nf(r.rate, 2), deaths: r.error ? "" : nf(r.deaths, 2),
         tip: r.error ? r.error : [`${metricLabel.xp} ${big(r.xp)}${pm(r, "xp")}`, `${metricLabel.profit} ${coin(r.profit)}${pm(r, "profit")}`,
-          `${metricLabel.kills} ${nf(r.kills, 1)}${pm(r, "kills")}`, r.n > 1 ? Component.tf("mean of {n} seeds; ± is two standard errors", { n: r.n }) : Component.t("one seed")].join("\n"),
+          `${metricLabel.kills} ${nf(r.kills, 1)}${pm(r, "kills")}`, `${metricLabel.keys} ${nf(r.keys || 0, 2)}${pm(r, "keys")}`,
+          ...Object.entries(r.keysBy || {}).sort((a, b) => b[1] - a[1]).map(([h, v]) => `  ${nice(h)} ${nf(v, 2)} / h`), r.n > 1 ? Component.tf("mean of {n} seeds; ± is two standard errors", { n: r.n }) : Component.t("one seed")].join("\n"),
         delta: r.error ? r.error : i === 0 ? Component.t("best") : `${(delta * 100).toFixed(2)}%`,
         deltaStyle: r.error ? "color:var(--color-accent-2-300)" : i === 0 ? "color:var(--color-accent-300)" : "color:var(--color-neutral-300)",
         rowStyle: isCur ? "color:var(--color-accent-300);font-weight:600" : "",
         current: isCur, seatable: !r.error && !isCur,
-        seat: () => this.zoneCompSeat(r.names),
+        seat: () => this.zoneCompSeat(r.names, head?.keys ? r.tier : null),
       };
     });
     const top2 = ranked.length > 1;
     // Whether the leader is clear of the runner-up by more than the two of them could move between seeds.
     const k = metric, gap = top2 ? val(ranked[0]) - val(ranked[1]) : 0;
     const noise = top2 && ranked[0].se?.[k] != null && ranked[1].se?.[k] != null ? 2 * Math.hypot(ranked[0].se[k], ranked[1].se[k]) : null;
+    // Keys: how far the climb went, and the tiers it never reached because every combination had stopped below them.
+    const climbed = head?.keys && head.tiers?.length ? head.tiers : null;
+    const zoneMax = zones.find(x => x.hrid === head?.zone)?.maxDifficulty;
+    const dropNote = !climbed || s.zoneCompRunning ? "" : [
+      Component.t("T0 drops no key fragments, so it is not run."),
+      ...Object.entries(head.dropped || {}).filter(([t, n]) => n > 0 && climbed.includes(Number(t)))
+        .map(([t, n]) => Component.tf("T{t}: {n} combinations stopped below it.", { t, n })),
+      !head.stopped && zoneMax > climbed[climbed.length - 1]
+        ? Component.tf("Not run past T{t}: no combination earned more keys there than at the tier below.", { t: climbed[climbed.length - 1] }) : "",
+    ].filter(Boolean).join(" ");
     const pct = s.zoneCompRunning && s.zoneCompProgress ? Math.round(100 * s.zoneCompProgress.done / Math.max(1, s.zoneCompProgress.total)) : 0;
 
     return {
@@ -2630,23 +2696,30 @@ class Component extends DCLogic {
       target: String(Math.min(Math.max(0, Math.floor(Number(c.target)) || 0), Math.max(0, cands.length - 1))),
       targetOpts: cands.map((t, i) => ({ value: String(i), label: zoneName(t) })),
       setTarget: e => this.setZoneComp({ target: Number(e.target.value) || 0 }),
-      capNote: plan.target ? Component.tf("{zone} seats {cap}.", { zone: zoneName(plan.target), cap: plan.cap }) : "",
+      capNote: keysDungeon ? Component.t("Dungeons drop chests, not keys — key fragments come from planets at T1 and up, so Keys runs this row at its own tier.")
+        : plan.target ? Component.tf("{zone} seats {cap}.", { zone: plan.tiers ? zoneName({ zone: plan.target.zone, tiers: plan.tiers }) : zoneName(plan.target), cap: plan.cap }) : "",
+      keys: !!c.keys, toggleKeys: () => this.setZoneComp({ keys: !c.keys, metric: !c.keys ? "keys" : c.metric === "keys" ? "xp" : c.metric }),
+      keysTip: Component.t("Ignore the row's tier and try every tier that drops key fragments (T1 and up). Each combination climbs one tier at a time and stops at the first tier where it earns fewer keys than at the one below, so tiers that are too strong are not run."),
       hours: String(c.hours), setHours: e => this.setZoneComp({ hours: e.target.value }),
       seeds: String(c.seeds), setSeeds: e => this.setZoneComp({ seeds: e.target.value }),
-      planNote: block ? "" : Component.tf("{n} combinations × {seeds} seeds = {sims} simulations of {h} h · {t} at {lanes} at a time.",
-        { n: plan.combos.length, seeds, sims, h: nf(hours), t: secText(estSec), lanes: LIM.concurrency }),
+      planNote: block ? "" : plan.tiers
+        ? Component.tf("{n} combinations × {k} tiers ({span}) × {seeds} seeds = at most {sims} simulations of {h} h · at most {t} at {lanes} at a time. A combination stops at the first tier where it earns fewer keys than at the one below.",
+          { n: plan.combos.length, k: plan.tiers.length, span: span(plan.tiers), seeds, sims, h: nf(hours), t: secText(estSec), lanes: LIM.concurrency })
+        : Component.tf("{n} combinations × {seeds} seeds = {sims} simulations of {h} h · {t} at {lanes} at a time.",
+          { n: plan.combos.length, seeds, sims, h: nf(hours), t: secText(estSec), lanes: LIM.concurrency }),
       runDisabled: !!block || !!s.zoneCompRunning || !this.client,
-      runLabel: s.zoneCompRunning ? Component.t("Searching…") : block || (plan.combos.length === 1 ? Component.t("Run 1 combination") : Component.tf("Run {n} combinations", { n: plan.combos.length })),
+      runLabel: s.zoneCompRunning ? Component.t("Searching…") : block || (plan.tiers ? Component.tf("Search {n} combinations for keys", { n: plan.combos.length }) : plan.combos.length === 1 ? Component.t("Run 1 combination") : Component.tf("Run {n} combinations", { n: plan.combos.length })),
       run: () => this.runZoneComp(), stop: () => this.stopZoneComp(), running: !!s.zoneCompRunning,
       progressPct: String(pct), progressStyle: `width:${pct}%;height:100%;background:var(--color-accent-2-400);transition:width 0.3s`,
       progressLabel: s.zoneCompProgress ? `${s.zoneCompProgress.done} / ${s.zoneCompProgress.total}` : "",
       error: s.zoneCompError || "", hasError: !!s.zoneCompError,
-      metrics: ["xp", "profit", "kills"].map(m => ({ label: metricLabel[m], style: m === metric ? segOn : segOff, pick: () => this.setZoneComp({ metric: m }) })),
+      metrics: ["xp", "profit", "kills", "keys"].map(m => ({ label: metricLabel[m], style: m === metric ? segOn : segOff, pick: () => this.setZoneComp({ metric: m }) })),
       hasRows: rows.length > 0, rows,
-      cols: chars.map(k => ({ label: k })),
+      cols: [...chars, ...(head?.keys ? [Component.t("Tier")] : [])].map(k => ({ label: k })),
       rateLabel,
-      gridStyle: `grid-template-columns:28px repeat(${Math.max(1, chars.length)}, minmax(110px,1fr)) repeat(5, max-content) 72px max-content`,
+      gridStyle: `grid-template-columns:28px repeat(${Math.max(1, chars.length)}, minmax(110px,1fr))${head?.keys ? " max-content" : ""} repeat(6, max-content) 72px max-content`,
       headLine: head ? `${zoneName(head)} · ${nf(head.hours)} h × ${head.seeds === 1 ? Component.t("1 seed") : Component.tf("{n} seeds", { n: head.seeds })}${head.stopped ? Component.t(" · stopped early") : ""}` : "",
+      dropNote,
       verdict: s.zoneCompRunning || !top2 ? ""
         : noise == null ? Component.t("One seed per combination: run two or more to see whether the leader's margin is more than luck.")
         : gap > noise ? Component.tf("The best combination leads the next by {gap} ({pct}%), more than the two could differ by chance (± {noise}).", { gap: fmt[k](gap), pct: (100 * gap / Math.abs(val(ranked[1]) || 1)).toFixed(2), noise: fmt[k](noise) })
