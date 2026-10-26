@@ -30,7 +30,9 @@ local/.state/loadouts.json (saved loadouts). Every command takes --json for mach
                                  Import an MWI Party Export / sim export (file, or - for stdin).
                                  --add appends (a taken name becomes "Name (2)"). Each imported player is
                                  also saved under its character name (--no-save skips that).
-  save <label> [--players A,B]   Save the party (or some of its players) as a named loadout.
+  save <label> [--players A,B] [--mod "..."]
+                                 Save the party (or some of its players) as a named loadout, with mods
+                                 (as in compare) applied first, so a tested what-if can be kept.
   loadouts [filter]              The saved loadouts: label, when saved, players, style, gear, abilities.
   load <label,...> [--add]       Make saved loadouts the party (--add appends to it). Seating resets.
   forget <label>                 Delete a saved loadout.
@@ -357,8 +359,10 @@ const commands = {
   },
 
   async save() {
-    const label = pos[0]; if (!label) die("save <label> [--players A,B]");
-    const all = party(), players = flags.players ? seatedPlayers(all, flags.players) : all;
+    const label = pos[0]; if (!label) die("save <label> [--players A,B] [--mod ...]");
+    const all = party();
+    let players = clone(flags.players ? seatedPlayers(all, flags.players) : all);
+    for (const m of multi.mod) players = await applyMods(players, m);
     const existed = saveLoadout(label, players);
     console.log(`${existed ? "replaced" : "saved"} loadout "${label}": ${players.map(nameOf).join(", ")}`);
   },
