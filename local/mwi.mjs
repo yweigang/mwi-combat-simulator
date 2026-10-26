@@ -63,7 +63,7 @@ local/.state/loadouts.json (saved loadouts). Every command takes --json for mach
                                                 saved party, the player matching A's name)
                                  run takes the same mods via --mod "..." (repeatable).
 
-  best-abilities --player A --zone Z [--tier T] [--metric xp|profit|kills] [--hours 300] [--seeds 2]
+  best-abilities --player A --zone Z [--tier T] [--metric xp|profit|kills|keys] [--hours 300] [--seeds 2]
                  [--slots N] [--levels a@100,b@90] [--only a,b,c] [--exclude a,b] [--no-fit] [--max 300]
                                  Which ability set fills A's slots best (the page's Best abilities search).
                                  Levels: --levels, else the export's owned abilities, else the loadout's.
@@ -500,7 +500,7 @@ const commands = {
     for (const r of rows) {
       if (r.error) { console.log(`  ${r.label}: ERROR ${r.error}`); continue; }
       const d = (k, dd = 0, f = fmt) => r === rows[0] ? "" : ` (Δ ${pm(r.vsBase[k].mean, r.vsBase[k].se, dd, f)}${r.vsBase[k].se && Math.abs(r.vsBase[k].mean) > 2 * r.vsBase[k].se ? " *" : ""})`;
-      console.log(`  ${r.label}: XP/h ${fmt(r.xp.mean)}${d("xp")} · profit/day ${coins(r.profit.mean)}${d("profit", 0, coins)} · kills/h ${fmt(r.kills.mean, 1)}${d("kills", 1)} · deaths/h ${fmt(r.deaths.mean, 2)}${d("deaths", 2)}`);
+      console.log(`  ${r.label}: XP/h ${fmt(r.xp.mean)}${d("xp")} · profit/day ${coins(r.profit.mean)}${d("profit", 0, coins)} · kills/h ${fmt(r.kills.mean, 1)}${d("kills", 1)} · deaths/h ${fmt(r.deaths.mean, 2)}${d("deaths", 2)}${rows[0].keys?.mean ? ` · keys/h ${fmt(r.keys.mean, 3)}${d("keys", 3)}` : ""}`);
       if (r.detail) printDetail(r.detail);
     }
   },
@@ -511,7 +511,7 @@ const commands = {
     const z = o.zs[0], t = o.tiers[0]; checkTier(z, t);
     const all = party(); if (!flags.player) die("--player is required");
     const who = findPlayer(all, flags.player), name = nameOf(who);
-    const metric = ["xp", "profit", "kills"].includes(flags.metric) ? flags.metric : "xp";
+    const metric = ["xp", "profit", "kills", "keys"].includes(flags.metric) ? flags.metric : "xp";
     const cat = await catalog();
     const levels = ownedLevels(who);
     if (flags.levels && flags.levels !== true) for (const tok of String(flags.levels).split(",")) { const [n, l] = tok.split("@"); levels.set((await findAbility(n.trim())).abilityHrid, num(l, 0)); }
@@ -598,15 +598,16 @@ const commands = {
     if (asJson) return out(res);
     console.log(`${name} on ${z.name} T${t} · best by ${metric} · ${o.hours} h × ${o.seeds} seeds · ${slots} normal slot(s) + special · ${count} possible sets, ${mode === "all" ? "all run" : `local search (${per.size} run)`}`);
     console.log(`party: ${team.map(nameOf).join(", ")} · pool: ${pool.map(d => `${short(d.abilityHrid)}@${levels.get(d.abilityHrid)}`).join(", ")}`);
+    const md = metric === "keys" ? 3 : 0;   // keys/h are fractions
     const top = rows.slice(0, num(flags.top, 15));
     top.forEach((r, i) => {
       if (r.error) return console.log(`${String(i + 1).padStart(3)}. ${r.set}: ERROR ${r.error}`);
-      const vs = i && r.vsBest ? ` · vs best ${pm(r.vsBest.mean, r.vsBest.se, 0, metric === "profit" ? coins : fmt)}` : "";
-      console.log(`${String(i + 1).padStart(3)}. ${r.set}${r.current ? "  [current]" : ""}\n     XP/h ${pm(r.xp.mean, r.xp.se)} · profit/day ${pm(r.profit.mean, r.profit.se, 0, coins)} · kills/h ${fmt(r.kills.mean, 1)} · deaths/h ${fmt(r.deaths.mean, 2)}${vs}`);
+      const vs = i && r.vsBest ? ` · vs best ${pm(r.vsBest.mean, r.vsBest.se, md, metric === "profit" ? coins : fmt)}` : "";
+      console.log(`${String(i + 1).padStart(3)}. ${r.set}${r.current ? "  [current]" : ""}\n     XP/h ${pm(r.xp.mean, r.xp.se)} · profit/day ${pm(r.profit.mean, r.profit.se, 0, coins)} · kills/h ${fmt(r.kills.mean, 1)} · deaths/h ${fmt(r.deaths.mean, 2)}${metric === "keys" ? ` · keys/h ${pm(r.keys.mean, r.keys.se, 3)}` : ""}${vs}`);
     });
     if (rows.length > top.length) console.log(`   … ${rows.length - top.length} more (--top N, or --json)`);
-    for (const s of steps) console.log(`round ${s.round}: ${s.from} → ${s.to} (+${fmt(s.gain)} ${metric})`);
-    if (held) console.log(`stopped at round ${held.round}: best swap (${held.to}) gained ${fmt(held.gain)}, within noise (2 SE = ${fmt(held.noise)})`);
+    for (const s of steps) console.log(`round ${s.round}: ${s.from} → ${s.to} (+${fmt(s.gain, md)} ${metric})`);
+    if (held) console.log(`stopped at round ${held.round}: best swap (${held.to}) gained ${fmt(held.gain, md)}, within noise (2 SE = ${fmt(held.noise, md)})`);
     if (flags.apply && best && !best.error) {
       const q = clone(who); await setAbilities(q, best.abilities.map(a => ({ hrid: a.hrid, level: Math.max(1, a.level || 1) })));
       writeState(PARTY_FILE, all.map(p => nameOf(p) === name ? q : p));
@@ -614,7 +615,7 @@ const commands = {
     }
     if (rows[1] && rows[1].vsBest && rows[1].vsBest.se != null) {
       const d = -rows[1].vsBest.mean, n2 = 2 * rows[1].vsBest.se;
-      console.log(d > n2 ? `verdict: #1 beats #2 by ${fmt(d)} ${metric} (> 2 SE ${fmt(n2)}): a clear winner.` : `verdict: #1 and #2 are within noise (${fmt(d)} vs 2 SE ${fmt(n2)}); add --seeds or --hours to separate them.`);
+      console.log(d > n2 ? `verdict: #1 beats #2 by ${fmt(d, md)} ${metric} (> 2 SE ${fmt(n2, md)}): a clear winner.` : `verdict: #1 and #2 are within noise (${fmt(d, md)} vs 2 SE ${fmt(n2, md)}); add --seeds or --hours to separate them.`);
     }
   },
 
