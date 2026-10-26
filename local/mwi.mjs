@@ -177,7 +177,11 @@ function ownedLevels(p) {
   for (const a of p?.loadout?.abilities || []) if (a?.hrid && !m.get(a.hrid)) m.set(a.hrid, Number(a.level) || 0);
   return m;
 }
-function mainStyle(p) {
+/** The equipped weapon's style (stab/slash/smash count as melee); the highest of melee/ranged/magic without one. */
+function mainStyle(p, items = []) {
+  const styles = (p?.loadout?.equipment || []).flatMap(e => items.find(i => i.itemHrid === e?.itemHrid)?.combatStyles || []).map(short);
+  const weapon = ["magic", "ranged"].find(s => styles.includes(s)) || (styles.some(s => ["stab", "slash", "smash"].includes(s)) ? "melee" : null);
+  if (weapon) return weapon;
   const L = p?.record?.levels || {};
   if ((p?.loadout?.equipment || []).some(e => /bulwark/i.test(String(e?.itemHrid || "")))) return "melee";
   return ["melee", "ranged", "magic"].reduce((a, k) => (L[k] || 0) > (L[a] || 0) ? k : a, "magic");
@@ -351,7 +355,7 @@ const commands = {
     const seated = new Set(seatedPlayers(all).map(nameOf));
     for (const p of list) {
       const lo = p.loadout || {}, L = p.record.levels || {};
-      console.log(`${nameOf(p)}${seated.has(nameOf(p)) ? " [seated]" : ""} · style ${mainStyle(p)} · ${Object.entries(L).map(([k, v]) => `${k} ${v}`).join(", ")}`);
+      console.log(`${nameOf(p)}${seated.has(nameOf(p)) ? " [seated]" : ""} · style ${mainStyle(p, items)} · ${Object.entries(L).map(([k, v]) => `${k} ${v}`).join(", ")}`);
       console.log(`  gear: ${(lo.equipment || []).map(e => `${slotName(e.itemHrid)}=${short(e.itemHrid)}+${e.enhancementLevel || 0}`).join(", ")}`);
       console.log(`  abilities: ${(lo.abilities || []).map(a => `${short(a.hrid)}@${a.level}`).join(", ")}`);
       const trig = Object.entries(lo.abilityTriggers || {}).filter(([, v]) => v);
@@ -380,11 +384,12 @@ const commands = {
       .sort((a, b) => b[1].savedAt.localeCompare(a[1].savedAt));
     if (asJson) return out(list.map(([label, v]) => ({ label, savedAt: v.savedAt, players: v.players.map(nameOf) })));
     if (!list.length) return console.log(q ? `no saved loadout matches "${pos[0]}"` : "no saved loadouts yet: `save <label>` or `import` a party");
+    const items = await allItems();
     for (const [label, v] of list) {
       console.log(`${label} · saved ${v.savedAt.slice(0, 10)}`);
       for (const p of v.players) {
         const lo = p.loadout || {}, L = p.record?.levels || {};
-        console.log(`  ${nameOf(p)} · ${mainStyle(p)} · ${Object.entries(L).map(([k, v]) => `${k} ${v}`).join(", ")}`);
+        console.log(`  ${nameOf(p)} · ${mainStyle(p, items)} · ${Object.entries(L).map(([k, v]) => `${k} ${v}`).join(", ")}`);
         console.log(`    gear: ${(lo.equipment || []).map(e => `${short(e.itemHrid)}+${e.enhancementLevel || 0}`).join(", ") || "-"}`);
         console.log(`    abilities: ${(lo.abilities || []).map(a => `${short(a.hrid)}@${a.level}`).join(", ") || "-"}`);
       }
@@ -526,7 +531,7 @@ const commands = {
     const cat = await catalog();
     const levels = ownedLevels(who);
     if (flags.levels && flags.levels !== true) for (const tok of String(flags.levels).split(",")) { const [n, l] = tok.split("@"); levels.set((await findAbility(n.trim())).abilityHrid, num(l, 0)); }
-    const style = mainStyle(who);
+    const style = mainStyle(who, await allItems());
     const fits = d => { const f = d.families || []; return !f.length || f.some(x => !["melee", "ranged", "magic"].includes(x)) || f.includes(style); };
     const only = flags.only && flags.only !== true ? new Set(await Promise.all(String(flags.only).split(",").map(async n => (await findAbility(n.trim())).abilityHrid))) : null;
     const excl = flags.exclude && flags.exclude !== true ? new Set(await Promise.all(String(flags.exclude).split(",").map(async n => (await findAbility(n.trim())).abilityHrid))) : new Set();
