@@ -12,6 +12,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { createNodeZoneClient } from "./nodeZoneClient.mjs";
+import { createMetricsReporter } from "./metricsReporter.mjs";
 
 const STATE_DIR = new URL("./.state/", import.meta.url);
 const PARTY_FILE = new URL("party.json", STATE_DIR);
@@ -24,7 +25,9 @@ const HELP = `MWI combat simulator, command line (local/mwi.mjs)
 
 State: local/.state/party.json (the imported party, editable), local/.state/settings.json and
 local/.state/loadouts.json (saved loadouts). Every command takes --json for machine-readable output and
---workers N (default: every core).
+--workers N (default: every core). While \`node local/server.mjs\` runs, the simulations also show on its
+performance dashboard (local/dashboard.html); --no-report or MWI_DASHBOARD=off turns that off, and
+MWI_DASHBOARD=http://host:port points it at a server on another port.
 
   import <file|-> [--add] [--no-save]
                                  Import an MWI Party Export / sim export (file, or - for stdin).
@@ -121,8 +124,12 @@ function pickOne(list, query, key, what) {
 }
 
 // ——— the client and the game data ———
-let zoneClient = null, cache = {};
-const client = () => (zoneClient ||= createNodeZoneClient({ workers: num(flags.workers, availableParallelism()), split: false }));
+let zoneClient = null, reporter = null, cache = {};
+const DASHBOARD = process.env.MWI_DASHBOARD || "http://127.0.0.1:8787";
+const client = () => (zoneClient ||= createNodeZoneClient({
+  workers: num(flags.workers, availableParallelism()), split: false,
+  metrics: (reporter = flags["no-report"] || DASHBOARD === "off" ? null : createMetricsReporter({ url: DASHBOARD, source: `cli ${cmd || ""} ${process.pid}`.replace(/\s+/g, " ") })),
+}));
 const zones = async () => (cache.zones ||= await client().zones());
 const catalog = async () => (cache.catalog ||= await client().zoneCatalog());
 const party = () => readJson(PARTY_FILE, null) || die("no party yet: run `import <export file>` first");
@@ -689,4 +696,4 @@ const run = commands[cmd] || (!cmd || cmd === "--help" || cmd === "-h" ? command
 if (!run) die(`unknown command "${cmd}" (try: help)`);
 try { await run(); }
 catch (e) { die(String(e?.message || e).replace(/^\d{3}\s*/, "")); }
-finally { zoneClient?.close(); }
+finally { await reporter?.flush(); zoneClient?.close(); }

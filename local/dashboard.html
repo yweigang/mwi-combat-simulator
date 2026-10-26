@@ -54,6 +54,7 @@
   .workers { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 6px; }
   .w { height: 54px; border-radius: 5px; background: var(--grid); position: relative; overflow: hidden; }
   .w span { position: absolute; left: 0; right: 0; bottom: 0; background: var(--s1); transition: height .4s; }
+  .w.cli span { background: var(--s2); }   /* a worker of a reporting CLI (node local/mwi.mjs) */
   .w em { position: absolute; top: 3px; left: 0; right: 0; text-align: center; font-size: 10px; font-style: normal; color: var(--muted); z-index: 1; }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
   @media (max-width: 820px) { .two { grid-template-columns: 1fr; } .charts { grid-template-columns: 1fr; } }
@@ -101,7 +102,7 @@
     <div class="panel">
       <h2>Worker threads · utilization (last second)</h2>
       <div class="workers" id="workerBars"></div>
-      <div class="hint">Each bar is one worker thread. Idle bars while jobs are queued would mean the pool is starving; idle bars with an empty queue just mean the request is finishing its last jobs.</div>
+      <div class="hint">Each bar is one worker thread (orange: a <code>node local/mwi.mjs</code> command reporting here). Idle bars while jobs are queued would mean the pool is starving; idle bars with an empty queue just mean the request is finishing its last jobs.</div>
     </div>
     <div class="panel">
       <h2>Since start</h2>
@@ -113,8 +114,8 @@
     <h2>Recent simulations</h2>
     <div class="tablewrap">
       <table>
-        <thead><tr><th>Zone</th><th>Tier</th><th>Party</th><th>Sim hours</th><th>Kernel ms</th><th>Queued ms</th><th>ms / sim-h</th><th>Kills</th><th>Thread</th><th>Finished</th></tr></thead>
-        <tbody id="recent"><tr><td colspan="10" style="text-align:center;color:var(--muted)">No simulations yet. Run something in the simulator, or press “Run load test”.</td></tr></tbody>
+        <thead><tr><th>Source</th><th>Zone</th><th>Tier</th><th>Party</th><th>Sim hours</th><th>Kernel ms</th><th>Queued ms</th><th>ms / sim-h</th><th>Kills</th><th>Thread</th><th>Finished</th></tr></thead>
+        <tbody id="recent"><tr><td colspan="11" style="text-align:center;color:var(--muted)">No simulations yet. Run something in the simulator or <code>node local/mwi.mjs</code>, or press “Run load test”.</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -125,6 +126,7 @@ const $ = id => document.getElementById(id);
 const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const fmt = (v, d = 0) => v == null || !Number.isFinite(v) ? "–" : v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 const pct = v => v == null ? "–" : `${fmt(100 * v, 0)}%`;
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const zoneName = hrid => (hrid || "?").split("/").pop().replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 const WINDOW = 600;
 
@@ -233,7 +235,8 @@ function renderWorkers(list) {
   if (host.children.length !== list.length) host.innerHTML = list.map(() => `<div class="w"><em></em><span></span></div>`).join("");
   list.forEach((w, i) => {
     const el = host.children[i];
-    el.title = `thread ${w.id}: ${pct(w.utilization)}`;
+    el.title = `${w.source ? `${w.source}, ` : ""}thread ${String(w.id).split("/").pop()}: ${pct(w.utilization)}`;
+    el.classList.toggle("cli", !!w.source);
     el.querySelector("em").textContent = pct(w.utilization);
     el.querySelector("span").style.height = `${Math.round(100 * w.utilization)}%`;
   });
@@ -257,8 +260,8 @@ function renderTotals(s) {
 function renderRecent(list) {
   if (!list.length) return;
   $("recent").innerHTML = list.map(j => `<tr>
-    <td>${j.ok ? "" : "⚠ "}${zoneName(j.zone)}</td><td>${j.tier ?? "–"}</td><td>${j.players ?? "–"}</td><td>${fmt(j.hours, j.hours < 1 ? 2 : 0)}</td>
-    <td>${fmt(j.runMs)}</td><td>${fmt(j.queuedMs)}</td><td>${fmt(j.msPerSimHour, 2)}</td><td>${fmt(j.kills)}</td><td>${j.workerId}</td>
+    <td>${esc(j.source || "page")}</td><td>${j.ok ? "" : "⚠ "}${zoneName(j.zone)}</td><td>${j.tier ?? "–"}</td><td>${j.players ?? "–"}</td><td>${fmt(j.hours, j.hours < 1 ? 2 : 0)}</td>
+    <td>${fmt(j.runMs)}</td><td>${fmt(j.queuedMs)}</td><td>${fmt(j.msPerSimHour, 2)}</td><td>${fmt(j.kills)}</td><td>${esc(String(j.workerId).split("/").pop())}</td>
     <td>${new Date(j.at).toLocaleTimeString()}</td></tr>`).join("");
 }
 
@@ -269,7 +272,8 @@ async function poll() {
     cores = s.cores;
     if (s.history.length) { history.push(...s.history); lastT = history[history.length - 1].t; if (history.length > WINDOW) history = history.slice(-WINDOW); }
     const workers = s.current?.threads || info?.workers || 0;
-    $("status").innerHTML = `<span class="dot"></span>live · ${cores} logical cores · ${workers} workers`;
+    const cli = s.reporters || [];
+    $("status").innerHTML = `<span class="dot"></span>live · ${cores} logical cores · ${workers} workers${cli.length ? ` · CLI reporting: ${cli.map(esc).join(", ")}` : ""}`;
     renderTiles(s.current, s.totals, workers);
     renderWorkers(s.current?.workers || []);
     renderTotals(s);

@@ -71,6 +71,7 @@ async function handleApi(req, res, path) {
   if (req.method !== "POST") return sendJson(res, 405, { error: "POST only" });
   const body = await readBody(req);
   if (path === "abort") { live.get(String(body?.id))?.abort(); return sendJson(res, 200, { value: true }); }
+  if (path === "report") return sendJson(res, 200, metrics.ingest(body));   // a CLI's jobs (local/metricsReporter.mjs)
 
   if (path.startsWith("stream/")) {
     const method = path.slice(7);
