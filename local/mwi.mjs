@@ -5,7 +5,8 @@
 //   node local/mwi.mjs help
 //
 // The imported party and the settings live in local/.state/ (party.json, settings.json): plain JSON, so a
-// loadout can also be edited by hand between runs. Names are matched loosely everywhere: "porcupine" for
+// loadout can also be edited by hand between runs. Saved loadouts (local/.state/loadouts.json) are a library
+// of named players to load back into the party without pasting an export again. Names are matched loosely everywhere: "porcupine" for
 // /actions/combat/porcupine, "water strike" or "water_strike" for /abilities/water_strike, a player by any
 // unambiguous part of their name.
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
@@ -15,16 +16,24 @@ import { createNodeZoneClient } from "./nodeZoneClient.mjs";
 const STATE_DIR = new URL("./.state/", import.meta.url);
 const PARTY_FILE = new URL("party.json", STATE_DIR);
 const SETTINGS_FILE = new URL("settings.json", STATE_DIR);
+const LOADOUTS_FILE = new URL("loadouts.json", STATE_DIR);
 const SLOT_INT = [1, 20, 50, 90];   // Intelligence levels that open the normal ability slots
 const PRICE_DEFAULTS = { loot: "bid", consumables: "ask", keys: "craft", keyMaterials: "ask", capes: "zero", catalyst: "none", mode: "standard", artisanTea: true };
 
 const HELP = `MWI combat simulator, command line (local/mwi.mjs)
 
-State: local/.state/party.json (the imported party, editable) and local/.state/settings.json.
-Every command takes --json for machine-readable output and --workers N (default: every core).
+State: local/.state/party.json (the imported party, editable), local/.state/settings.json and
+local/.state/loadouts.json (saved loadouts). Every command takes --json for machine-readable output and
+--workers N (default: every core).
 
-  import <file|-> [--add]        Import an MWI Party Export / sim export (file, or - for stdin).
-                                 --add appends (a taken name becomes "Name (2)").
+  import <file|-> [--add] [--no-save]
+                                 Import an MWI Party Export / sim export (file, or - for stdin).
+                                 --add appends (a taken name becomes "Name (2)"). Each imported player is
+                                 also saved under its character name (--no-save skips that).
+  save <label> [--players A,B]   Save the party (or some of its players) as a named loadout.
+  loadouts [filter]              The saved loadouts: label, when saved, players, style, gear, abilities.
+  load <label,...> [--add]       Make saved loadouts the party (--add appends to it). Seating resets.
+  forget <label>                 Delete a saved loadout.
   party [name] [--full]          The party: levels, gear, abilities (with levels and triggers), food, drinks,
                                  and the abilities the export says are owned.
   seat <name,...|all>            Which players run by default (the "seated" party). Default: all.
@@ -50,6 +59,8 @@ Every command takes --json for machine-readable output and --workers N (default:
                                    A.equip=royal_water_robe_top+10     A.unequip=back
                                    A.level.magic=170     A.trigger.frost_surge=<json array>
                                    A.loadout=@file.json  (whole loadout from a file)
+                                   A.loadout=saved:label (gear/abilities/food of a saved loadout; for a
+                                                saved party, the player matching A's name)
                                  run takes the same mods via --mod "..." (repeatable).
 
   best-abilities --player A --zone Z [--tier T] [--metric xp|profit|kills] [--hours 300] [--seeds 2]
@@ -115,6 +126,19 @@ const catalog = async () => (cache.catalog ||= await client().zoneCatalog());
 const party = () => readJson(PARTY_FILE, null) || die("no party yet: run `import <export file>` first");
 const settings = () => readJson(SETTINGS_FILE, {});
 const nameOf = p => p?.record?.name || "?";
+const library = () => readJson(LOADOUTS_FILE, {});
+const findSaved = (lib, q) => pickOne(Object.keys(lib).map(name => ({ name })), q, x => x.name, "saved loadout").name;
+const uniqueNames = (players, prev = []) => {
+  const taken = new Set(prev.map(nameOf));
+  for (const p of players) { let n = nameOf(p), base = n, k = 2; while (taken.has(n)) n = `${base} (${k++})`; p.record.name = n; taken.add(n); }
+  return players;
+};
+function saveLoadout(label, players) {
+  const lib = library(), existed = label in lib;
+  lib[label] = { savedAt: new Date().toISOString(), players: clone(players) };
+  writeState(LOADOUTS_FILE, lib);
+  return existed;
+}
 
 const findZone = async q => pickOne(await zones(), q, z => z.hrid, "zone");
 const findAbility = async q => pickOne((await catalog()).abilities.map(a => ({ ...a, hrid: a.abilityHrid })), q, a => a.abilityHrid, "ability");
@@ -189,7 +213,10 @@ async function applyMods(players, spec) {
       lo.equipment = kept;
     } else if (key.startsWith("level.")) p.record.levels[key.slice(6)] = num(value, p.record.levels[key.slice(6)]);
     else if (key.startsWith("trigger.")) { const a = await findAbility(key.slice(8)); lo.abilityTriggers = { ...lo.abilityTriggers, [a.abilityHrid]: JSON.parse(value) }; }
-    else if (key === "loadout") p.loadout = JSON.parse(readFileSync(value.replace(/^@/, ""), "utf8"));
+    else if (key === "loadout" && /^saved:/i.test(value)) {
+      const lib = library(), entry = lib[findSaved(lib, value.slice(6))].players;
+      p.loadout = clone((entry.length === 1 ? entry[0] : findPlayer(entry, nameOf(p))).loadout);
+    } else if (key === "loadout") p.loadout = JSON.parse(readFileSync(value.replace(/^@/, ""), "utf8"));
     else die(`unknown mod "${what}" in "${part}"`);
   }
   return players;
@@ -298,14 +325,12 @@ const commands = {
     const text = src === "-" ? readFileSync(0, "utf8") : readFileSync(src, "utf8");
     const r = await client().zoneImport({ text });
     let players = r.players || [];
-    if (flags.add) {
-      const prev = readJson(PARTY_FILE, []), taken = new Set(prev.map(nameOf));
-      for (const p of players) { let n = nameOf(p), base = n, k = 2; while (taken.has(n)) n = `${base} (${k++})`; p.record.name = n; taken.add(n); }
-      players = [...prev, ...players];
-    }
+    const saved = flags["no-save"] ? [] : players.map(p => (saveLoadout(nameOf(p), [p]), nameOf(p)));
+    if (flags.add) { const prev = readJson(PARTY_FILE, []); players = [...prev, ...uniqueNames(players, prev)]; }
     writeState(PARTY_FILE, players);
-    if (asJson) return out({ players: players.map(nameOf), errors: r.errors, warnings: r.warnings, format: r.format });
+    if (asJson) return out({ players: players.map(nameOf), saved, errors: r.errors, warnings: r.warnings, format: r.format });
     console.log(`imported ${r.players.length} player(s) (${r.format}); party is now: ${players.map(nameOf).join(", ")}`);
+    if (saved.length) console.log(`  saved as loadout(s): ${saved.join(", ")}`);
     for (const e of r.errors || []) console.log(`  error: ${typeof e === "string" ? e : JSON.stringify(e)}`);
     for (const w of r.warnings || []) console.log(`  warning: ${typeof w === "string" ? w : JSON.stringify(w)}`);
   },
@@ -329,6 +354,48 @@ const commands = {
       else console.log(`  owned abilities: not in this export (only the slotted ones are known)`);
       if (flags.full) console.log(`  rooms: ${Object.entries(p.record.rooms || {}).map(([k, v]) => `${short(k)} ${v}`).join(", ")}`);
     }
+  },
+
+  async save() {
+    const label = pos[0]; if (!label) die("save <label> [--players A,B]");
+    const all = party(), players = flags.players ? seatedPlayers(all, flags.players) : all;
+    const existed = saveLoadout(label, players);
+    console.log(`${existed ? "replaced" : "saved"} loadout "${label}": ${players.map(nameOf).join(", ")}`);
+  },
+
+  async loadouts() {
+    const lib = library(), q = pos[0] ? norm(pos[0]) : "";
+    const list = Object.entries(lib).filter(([k, v]) => !q || norm(k).includes(q) || v.players.some(p => norm(nameOf(p)).includes(q)))
+      .sort((a, b) => b[1].savedAt.localeCompare(a[1].savedAt));
+    if (asJson) return out(list.map(([label, v]) => ({ label, savedAt: v.savedAt, players: v.players.map(nameOf) })));
+    if (!list.length) return console.log(q ? `no saved loadout matches "${pos[0]}"` : "no saved loadouts yet: `save <label>` or `import` a party");
+    for (const [label, v] of list) {
+      console.log(`${label} · saved ${v.savedAt.slice(0, 10)}`);
+      for (const p of v.players) {
+        const lo = p.loadout || {}, L = p.record?.levels || {};
+        console.log(`  ${nameOf(p)} · ${mainStyle(p)} · ${Object.entries(L).map(([k, v]) => `${k} ${v}`).join(", ")}`);
+        console.log(`    gear: ${(lo.equipment || []).map(e => `${short(e.itemHrid)}+${e.enhancementLevel || 0}`).join(", ") || "-"}`);
+        console.log(`    abilities: ${(lo.abilities || []).map(a => `${short(a.hrid)}@${a.level}`).join(", ") || "-"}`);
+      }
+    }
+  },
+
+  async load() {
+    if (!pos[0]) die("load <label,...> [--add]");
+    const lib = library();
+    const picked = pos.join(" ").split(",").map(s => s.trim()).filter(Boolean).flatMap(q => clone(lib[findSaved(lib, q)].players));
+    const prev = flags.add ? readJson(PARTY_FILE, []) : [];
+    const players = [...prev, ...uniqueNames(picked, prev)];
+    writeState(PARTY_FILE, players);
+    if (!flags.add) { const s = settings(); if (s.seat) { delete s.seat; writeState(SETTINGS_FILE, s); } }
+    console.log(`party is now: ${players.map(nameOf).join(", ")}`);
+  },
+
+  async forget() {
+    const lib = library(); if (!pos[0]) die("forget <label>");
+    const label = findSaved(lib, pos.join(" "));
+    delete lib[label]; writeState(LOADOUTS_FILE, lib);
+    console.log(`deleted saved loadout "${label}"`);
   },
 
   async seat() {

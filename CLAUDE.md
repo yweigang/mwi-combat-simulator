@@ -12,6 +12,10 @@ worker threads, so its numbers are the page's.
    `local/.state/party.json`, which stays between sessions: check `party` before asking for a new export.
    The import warns when the export has no owned inventory: then only the *slotted* abilities' levels are known,
    so ask for the other ability levels (or take them as `--levels a@100,b@90`).
+   Saved loadouts (`local/.state/loadouts.json`) keep characters between exports: `import` saves each player
+   under its name, `save <label>` stores the party under a label, `loadouts` lists them, `load <label,...>`
+   brings them back, and the mod `A.loadout=saved:<label>` compares a saved setup against the current one.
+   Check `loadouts` before asking the user for an export.
 2. **Look.** `party [name] [--full]`, `zones [filter]`, `catalog abilities|food|drinks|items [filter]`.
 3. **Simulate.**
    - `run --zone Z --tier T [--detail]`: baseline numbers. `--detail` shows casts / h, damage by source, mana
