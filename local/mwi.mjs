@@ -587,7 +587,7 @@ const commands = {
     const rows = [...per.values()].map(e => {
       if (!e.runs) return { set: label(e.set), error: e.error };
       const r = { set: label(e.set), abilities: [e.set.special, ...e.set.normal].filter(Boolean).map(h => ({ hrid: h, level: levels.get(h) })), current: keyOf(e.set) === startKey };
-      for (const m of ["xp", "profit", "kills", "deaths"]) r[m] = stats(e.runs.map(x => x[m]));
+      for (const m of METRICS) r[m] = stats(e.runs.map(x => x[m]));
       r._set = e.set;
       return r;
     }).sort((a, b) => (b[metric]?.mean ?? -Infinity) - (a[metric]?.mean ?? -Infinity));
