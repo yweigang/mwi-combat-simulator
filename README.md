@@ -90,6 +90,14 @@ per-seed differences, and stops when none does. The ranking lists every set run,
 **Apply** puts a set in the player's loadout at the levels it ran with: an ability that stays keeps its trigger
 conditions, and one that comes in starts on its defaults.
 
+## Command line (this fork)
+
+`node local/mwi.mjs help`: the same simulations without the page, for scripts or an assistant in a terminal.
+`import` an export once (kept in `local/.state/party.json`), then `run` zones (`--detail` for casts, damage,
+mana and loot per player), `compare` what-ifs on the same seeds (`--variant "Fireball: Me.ability-=water_strike;
+Me.ability+=fireball@90"`), search `best-abilities`, or run the `upgrades`, `triggers` and `skills` optimizers.
+Names match loosely ("porcupine", "water strike"), and `--json` gives machine-readable output.
+
 ## Found something wrong?
 
 Mail Metzli in-game, or open an issue. Numbers that look off are worth reporting with your export and the zone you
